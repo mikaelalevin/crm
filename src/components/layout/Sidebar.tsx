@@ -51,13 +51,13 @@ export function Sidebar({ brandName = "Ditt varumärke", userInitials = "?", use
 
   const mainNav: NavItem[] = [
     { href: "/dashboard", label: "Översikt", icon: <DashboardIcon /> },
-    { href: "/segments", label: "Segment", icon: <SegmentsIcon />, badge: 6 },
+    { href: "/ai-recommendations", label: "AI-prediktioner", icon: <AiIcon /> },
     { href: "/customers", label: "Alla kunder", icon: <CustomersIcon /> },
+    { href: "/segments", label: "Segment", icon: <SegmentsIcon />, badge: 6 },
     { href: "/campaigns", label: "Kampanjer", icon: <CampaignsIcon /> },
   ];
   const insightsNav: NavItem[] = [
-    { href: "/trends", label: "Trender", icon: <TrendsIcon /> },
-    { href: "/ai-recommendations", label: "AI-rekommendationer", icon: <AiIcon /> },
+    { href: "/trends", label: "Försäljning", icon: <TrendsIcon /> },
   ];
   const configNav: NavItem[] = [
     { href: "/settings", label: "Integrationer", icon: <SettingsIcon /> },
@@ -65,10 +65,12 @@ export function Sidebar({ brandName = "Ditt varumärke", userInitials = "?", use
 
   function NavLink({ item }: { item: NavItem }) {
     const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href + "/"));
+    const isAi = item.href === "/ai-recommendations";
+    const activeBg = isAi ? "#6B4F5B" : "#1A1614";
     return (
       <Link href={item.href} className="flex items-center gap-3 px-3 py-[9px] rounded-lg text-[13.5px] font-medium transition-all"
-        style={{ background: isActive ? "#1A1614" : "transparent", color: isActive ? "#FAF5EB" : "#5A4232" }}
-        onMouseEnter={(e) => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = "#F2E8D0"; (e.currentTarget as HTMLElement).style.color = "#1A1614"; } }}
+        style={{ background: isActive ? activeBg : "transparent", color: isActive ? "#FAF5EB" : "#5A4232" }}
+        onMouseEnter={(e) => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = isAi ? "#EDE4EC" : "#F2E8D0"; (e.currentTarget as HTMLElement).style.color = isAi ? "#6B4F5B" : "#1A1614"; } }}
         onMouseLeave={(e) => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "#5A4232"; } }}>
         <span className="flex-shrink-0">{item.icon}</span>
         <span className="flex-1">{item.label}</span>

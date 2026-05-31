@@ -362,7 +362,7 @@ export function CustomerDetail({ customer, salesReps, orders, sessions, aiPredic
             {[
               { label: "Totalt köpvärde", value: customer.total_spent ? customer.total_spent.toLocaleString("sv") + " kr" : "–" },
               { label: "Antal köp", value: customer.order_count?.toString() ?? "0" },
-              { label: "Köpsannolikhet 14d", value: `${prob}%` },
+              { label: "Träffsäkerhet 14d", value: `${prob}%` },
             ].map((s) => (
               <div key={s.label} className="rounded-xl p-4" style={{ background: "#FFFFFF", border: `1px solid ${border}` }}>
                 <div className="text-[10.5px] uppercase tracking-[0.08em] font-medium mb-1.5" style={{ color: inkMuted }}>{s.label}</div>
@@ -383,7 +383,7 @@ export function CustomerDetail({ customer, salesReps, orders, sessions, aiPredic
                 </span>
               </div>
               <span className="text-[11px] font-semibold px-2.5 py-1 rounded-lg" style={{ background: "rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.9)" }}>
-                {pred.confidence}% sannolikhet
+                {pred.confidence}% träffsäkerhet
               </span>
             </div>
             <div className="px-6 py-5" style={{ background: "#FFFFFF" }}>

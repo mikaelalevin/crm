@@ -106,10 +106,10 @@ export function AiRecommendationsList({ customers }: { customers: Customer[] }) 
       <div className="flex items-end justify-between mb-8">
         <div>
           <h1 style={{ fontFamily: "var(--font-fraunces), serif", fontWeight: 400, fontSize: 34, color: ink, letterSpacing: "-0.01em" }}>
-            AI-rekommendationer
+            AI-prediktioner
           </h1>
           <p className="mt-1 text-[14px]" style={{ color: inkMuted }}>
-            Predikterat nästa köp per kund — sorterat på när köpet förväntas
+            Claude analyserar köphistorik och förutspår nästa köp per kund
           </p>
         </div>
         {withoutPredictions.length > 0 && (
@@ -136,8 +136,9 @@ export function AiRecommendationsList({ customers }: { customers: Customer[] }) 
 
       {aiCount > 0 && (
         <div className="flex items-center gap-2 mb-5">
-          <div className="text-[11px] uppercase tracking-[0.1em] font-semibold px-2.5 py-1 rounded-lg" style={{ background: ink, color: "rgba(255,255,255,0.8)" }}>
-            {aiCount} AI-prediktioner
+          <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.1em] font-semibold px-2.5 py-1 rounded-lg" style={{ background: "#6B4F5B", color: "rgba(255,255,255,0.85)" }}>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            {aiCount} Claude-prediktioner
           </div>
           <span className="text-[12px]" style={{ color: inkMuted }}>
             {withoutPredictions.length > 0 ? `· ${withoutPredictions.length} kunder kvar att analysera` : "· Alla kunder analyserade"}
@@ -155,21 +156,30 @@ export function AiRecommendationsList({ customers }: { customers: Customer[] }) 
           const err = errors[c.id];
           const color = AVATAR_COLORS[i % AVATAR_COLORS.length];
 
+          const genDate = isAi && pred.generatedAt ? new Date(pred.generatedAt) : null;
+          if (genDate) genDate.setDate(genDate.getDate() + pred.daysUntil);
+          const actualDaysUntil = genDate
+            ? Math.max(0, Math.round((genDate.getTime() - Date.now()) / 86_400_000))
+            : pred.daysUntil;
+          const urgentSoon = actualDaysUntil <= 7;
+          const urgentMid = actualDaysUntil <= 30;
+          const daysColor = urgentSoon ? "#3E6B2F" : urgentMid ? "#8A6E55" : inkMuted;
+
           return (
             <div
               key={c.id}
-              className="flex items-center gap-4 px-6 py-4"
+              className="flex items-start gap-4 px-6 py-4"
               style={{ borderTop: i === 0 ? "none" : `1px solid ${border}`, background: "#FFFFFF" }}
             >
               {/* Avatar */}
               <div
-                className="w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0"
+                className="w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0 mt-0.5"
                 style={{ background: `linear-gradient(135deg, ${color}, ${color}99)`, fontSize: 13 }}
               >
                 {initials(c)}
               </div>
 
-              {/* Name + email */}
+              {/* Name + email + reason */}
               <div className="flex-1 min-w-0">
                 <a
                   href={`/customers/${c.id}`}
@@ -178,11 +188,16 @@ export function AiRecommendationsList({ customers }: { customers: Customer[] }) 
                 >
                   {displayName(c)}
                 </a>
-                <div className="text-[11px] mt-0.5 truncate" style={{ color: inkMuted }}>{c.email}</div>
+                <div className="text-[11px] mt-0.5" style={{ color: inkMuted }}>{c.email}</div>
+                {isAi && pred.reason && (
+                  <div className="text-[11.5px] mt-1.5 leading-relaxed" style={{ color: inkMuted, fontStyle: "italic" }}>
+                    {pred.reason}
+                  </div>
+                )}
               </div>
 
               {/* Prediction */}
-              <div className="flex items-center gap-6 flex-shrink-0">
+              <div className="flex items-center gap-5 flex-shrink-0 mt-0.5">
                 {isGenerating ? (
                   <div className="flex items-center gap-2 text-[12px]" style={{ color: inkMuted }}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin">
@@ -195,21 +210,27 @@ export function AiRecommendationsList({ customers }: { customers: Customer[] }) 
                 ) : (
                   <>
                     <div className="text-right">
-                      <div className="text-[11px] uppercase tracking-[0.06em] font-medium mb-0.5" style={{ color: inkMuted }}>Nästa köp</div>
-                      <div style={{ fontFamily: "var(--font-fraunces), serif", fontSize: 15, color: ink }}>
+                      <div className="text-[10.5px] uppercase tracking-[0.06em] font-medium mb-0.5" style={{ color: inkMuted }}>Nästa köp</div>
+                      <div style={{ fontFamily: "var(--font-fraunces), serif", fontSize: 14, color: ink }}>
                         {pred.product}
                       </div>
                     </div>
-                    <div className="text-right w-16">
-                      <div className="text-[11px] uppercase tracking-[0.06em] font-medium mb-0.5" style={{ color: inkMuted }}>Datum</div>
-                      <div style={{ fontFamily: "var(--font-fraunces), serif", fontSize: 15, color: ink }}>
+                    <div className="text-right" style={{ minWidth: 72 }}>
+                      <div className="text-[10.5px] uppercase tracking-[0.06em] font-medium mb-0.5" style={{ color: inkMuted }}>Förväntas</div>
+                      <div style={{ fontFamily: "var(--font-fraunces), serif", fontSize: 14, color: daysColor, fontWeight: urgentSoon ? 500 : 400 }}>
                         {pred.date}
                       </div>
+                      {isAi && (
+                        <div className="text-[10.5px] mt-0.5" style={{ color: daysColor }}>
+                          {actualDaysUntil === 0 ? "idag" : `om ${actualDaysUntil}d`}
+                          {urgentSoon && <span className="ml-1">●</span>}
+                        </div>
+                      )}
                     </div>
-                    <div className="w-12 text-right">
-                      <div className="text-[11px] uppercase tracking-[0.06em] font-medium mb-1" style={{ color: inkMuted }}>Sannolikhet</div>
+                    <div className="text-right" style={{ width: 80 }}>
+                      <div className="text-[10.5px] uppercase tracking-[0.06em] font-medium mb-1" style={{ color: inkMuted }}>Träffsäkerhet</div>
                       <div className="flex items-center gap-1.5 justify-end">
-                        <div className="w-12 rounded-full overflow-hidden" style={{ height: 3, background: warm }}>
+                        <div className="w-10 rounded-full overflow-hidden" style={{ height: 3, background: warm }}>
                           <div style={{ height: "100%", width: `${pred.confidence}%`, background: isAi ? "#6B4F5B" : ink, borderRadius: 2 }} />
                         </div>
                         <span className="text-[11px] font-semibold" style={{ color: isAi ? "#6B4F5B" : ink }}>
@@ -219,7 +240,6 @@ export function AiRecommendationsList({ customers }: { customers: Customer[] }) 
                     </div>
                   </>
                 )}
-
               </div>
             </div>
           );
