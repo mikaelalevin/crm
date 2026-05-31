@@ -112,6 +112,26 @@ export function AiRecommendationsList({ customers }: { customers: Customer[] }) 
             Predikterat nästa köp per kund — sorterat på när köpet förväntas
           </p>
         </div>
+        {withoutPredictions.length > 0 && (
+          <button
+            onClick={generateAll}
+            disabled={generatingAll}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-medium flex-shrink-0"
+            style={{ background: generatingAll ? warm : ink, color: generatingAll ? inkMuted : bg, border: "none", cursor: generatingAll ? "not-allowed" : "pointer", fontFamily: "inherit" }}
+          >
+            {generatingAll ? (
+              <>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                Analyserar...
+              </>
+            ) : (
+              <>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                Analysera alla ({withoutPredictions.length})
+              </>
+            )}
+          </button>
+        )}
       </div>
 
       {aiCount > 0 && (

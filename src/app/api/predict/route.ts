@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getBrandId } from "@/lib/brand";
 import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic();
@@ -6,18 +7,17 @@ const anthropic = new Anthropic();
 export async function POST(request: Request) {
   const supabase = await createClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
-
   const body = await request.json() as { customer_id?: string };
   const { customer_id } = body;
   if (!customer_id) return Response.json({ error: "customer_id krävs" }, { status: 400 });
 
+  const brandId = await getBrandId();
+  if (!brandId) return Response.json({ error: "Inget varumärke hittades" }, { status: 404 });
+
   const { data: brandsData } = await supabase
     .from("brands")
     .select("id, name")
-    .eq("owner_id", user.id)
-    .order("created_at")
+    .eq("id", brandId)
     .limit(1);
 
   const brand = (brandsData?.[0] as { id: string; name: string } | undefined);

@@ -13,6 +13,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
     { data: repsData },
     { data: ordersData },
     { data: sessionsData },
+    { data: brandData },
   ] = await Promise.all([
     supabase
       .from("customers")
@@ -37,6 +38,11 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
       .eq("customer_id", id)
       .order("started_at", { ascending: false })
       .limit(10),
+    supabase
+      .from("brands")
+      .select("name")
+      .eq("id", brandId)
+      .single(),
   ]);
 
   if (!customerData) notFound();
@@ -61,5 +67,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
     products_viewed: unknown[]; duration_seconds: number;
   }[];
 
-  return <CustomerDetail customer={customer} salesReps={salesReps} orders={orders} sessions={sessions} aiPrediction={customer.ai_prediction} />;
+  const brandName = (brandData as { name: string } | null)?.name;
+
+  return <CustomerDetail customer={customer} salesReps={salesReps} orders={orders} sessions={sessions} aiPrediction={customer.ai_prediction} brandName={brandName} />;
 }
