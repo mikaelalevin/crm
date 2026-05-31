@@ -16,12 +16,12 @@ Med varma hälsningar,
 Studio Acacia`);
 
   const ink = "#1A1614";
-  const bg = "#FAF7F2";
-  const border = "#E8E0D5";
-  const warm = "#F2EDE5";
+  const bg = "#FAF5EB";
+  const border = "#DDD0B5";
+  const warm = "#F2E8D0";
   const card = "#FFFFFF";
-  const inkMuted = "#8F857E";
-  const inkSoft = "#5C544F";
+  const inkMuted = "#8A6E55";
+  const inkSoft = "#5A4232";
 
   return (
     <div className="animate-fade-in">
@@ -31,7 +31,7 @@ Studio Acacia`);
             Ny kampanj
           </h1>
           <p className="mt-1.5" style={{ color: inkMuted, fontSize: 14 }}>
-            MUSE föreslår innehåll baserat på det valda segmentet.
+            LUMA föreslår innehåll baserat på det valda segmentet.
           </p>
         </div>
         <div className="flex gap-2.5">
@@ -44,7 +44,7 @@ Studio Acacia`);
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 24 }}>
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_380px] gap-6">
         {/* Form */}
         <div className="flex flex-col gap-5">
           {/* Step 1 — Segment */}
@@ -57,15 +57,17 @@ Studio Acacia`);
               className="w-full rounded-xl px-3.5 py-3 text-sm outline-none"
               style={{ background: bg, border: `1px solid ${border}`, color: ink, fontFamily: "inherit" }}
             >
-              <option>Loyal Romantics — 1 284 kunder (rekommenderad)</option>
-              <option>Best Friends — 312 kunder</option>
-              <option>Trend Hunters — 847 kunder</option>
-              <option>About to Drift — 412 kunder</option>
+              <option>Stammisar — 1 284 kunder (rekommenderad)</option>
+              <option>VIP-kunder — 312 kunder</option>
+              <option>Vänner &amp; familj — 184 kunder</option>
+              <option>Nya kunder — 486 kunder</option>
+              <option>Inaktiva kunder — 1 642 kunder</option>
+              <option>På väg bort — 412 kunder</option>
             </select>
             <div className="flex gap-2.5 items-start mt-3.5 rounded-xl px-3.5 py-3" style={{ background: warm }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="#B47A75" className="flex-shrink-0 mt-0.5"><path d="M12 2l2 6h6l-5 4 2 7-5-4-5 4 2-7-5-4h6z"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="#C45224" className="flex-shrink-0 mt-0.5"><path d="M12 2l2 6h6l-5 4 2 7-5-4-5 4 2-7-5-4h6z"/></svg>
               <div className="text-[13px] leading-relaxed" style={{ color: inkSoft }}>
-                <strong style={{ color: ink }}>MUSE rekommenderar Loyal Romantics</strong> — 937 av 1 284 är redo att handla nu. Förväntad ROI: <strong style={{ color: ink }}>1 720 000 kr</strong>.
+                <strong style={{ color: ink }}>LUMA rekommenderar Stammisar</strong> — 937 av 1 284 är redo att handla nu. Förväntad ROI: <strong style={{ color: ink }}>1 720 000 kr</strong>.
               </div>
             </div>
           </div>
@@ -93,7 +95,7 @@ Studio Acacia`);
                   }}
                 >
                   <div className="text-[13px] font-semibold" style={{ color: channel === ch.id ? bg : ink }}>{ch.label}</div>
-                  <div className="text-[11px] mt-0.5" style={{ color: channel === ch.id ? "rgba(250,247,242,0.7)" : inkMuted }}>{ch.sub}</div>
+                  <div className="text-[11px] mt-0.5" style={{ color: channel === ch.id ? "rgba(250,245,235,0.7)" : inkMuted }}>{ch.sub}</div>
                 </button>
               ))}
             </div>
@@ -109,7 +111,7 @@ Studio Acacia`);
               style={{ background: ink, color: bg, border: "none", cursor: "pointer", fontFamily: "inherit" }}
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2 6h6l-5 4 2 7-5-4-5 4 2-7-5-4h6z"/></svg>
-              MUSE har skrivit ett förslag
+              LUMA har skrivit ett förslag
             </button>
 
             <div className="text-[11.5px] uppercase tracking-[0.1em] font-semibold mb-2" style={{ color: inkMuted }}>Ämnesrad</div>
@@ -178,7 +180,7 @@ Studio Acacia`);
             </div>
             <div
               className="rounded-xl flex items-center justify-center my-4"
-              style={{ height: 160, background: "linear-gradient(135deg, #D4A5A0, #B47A75)", fontFamily: "var(--font-fraunces), serif", fontSize: 26, color: "white", letterSpacing: "0.05em" }}
+              style={{ height: 160, background: "linear-gradient(135deg, #D9896A, #C45224)", fontFamily: "var(--font-fraunces), serif", fontSize: 26, color: "white", letterSpacing: "0.05em" }}
             >
               Spring · 2026
             </div>
@@ -194,7 +196,7 @@ Studio Acacia`);
               Se din edit →
             </div>
             <div className="mt-6 pt-4.5 text-[11px] text-center" style={{ borderTop: `1px solid ${border}`, color: inkMuted }}>
-              Skickat med MUSE
+              Skickat med LUMA
             </div>
           </div>
         </div>

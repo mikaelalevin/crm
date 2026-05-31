@@ -31,13 +31,13 @@ export async function GET(request: NextRequest) {
       // Check if brand exists; if not, go to onboarding
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: brand } = await supabase
+        const { data: brandsData } = await supabase
           .from("brands")
           .select("id")
           .eq("owner_id", user.id)
-          .single();
+          .limit(1);
 
-        if (!brand) {
+        if (!brandsData?.length) {
           return NextResponse.redirect(`${origin}/onboarding`);
         }
       }

@@ -1,431 +1,288 @@
 import { createClient } from "@/lib/supabase/server";
+import { getBrandId } from "@/lib/brand";
+import { Greeting } from "./Greeting";
 
-const MOCK_INSIGHTS = [
-  {
-    id: "1",
-    dot: "#B47A75",
-    title: "Dina stammisar är redo att handla igen",
-    body: "214 kunder i segmentet Stammisar har inte fått ett mejl på 18 dagar. Baserat på deras tidigare köpcykel är 73% redo att handla nu. Genomsnittlig ordervärde: 1 840 kr.",
-    actions: [
-      { label: "Skapa kampanj", href: "/campaigns", primary: true },
-      { label: "Visa segment", href: "/segments", primary: false },
-    ],
-  },
-  {
-    id: "2",
-    dot: "#C9A961",
-    title: "28 VIP-kunder visar tecken på att gå förlorade",
-    body: "De har minskat sin köpfrekvens med 60% senaste 90 dagarna. Föreslagen åtgärd: personlig win-back med exklusiv förhandsvisning av FW26-kollektionen och deras VIP-rabatt.",
-    actions: [
-      { label: "Skicka VIP-erbjudande", href: "/campaigns", primary: true },
-      { label: "Se kunder", href: "/customers", primary: false },
-    ],
-  },
-  {
-    id: "3",
-    dot: "#6B7A63",
-    title: '"Linen Mini Dress" predikteras bli bästsäljare i juni',
-    body: "Baserat på säsongstrender och kundernas wishlist-aktivitet. 1 247 kunder har lagt den i favoriter. Rekommendation: lansera lookbook 25 maj.",
-    actions: [{ label: "Planera lansering", href: "/campaigns", primary: true }],
-  },
-  {
-    id: "4",
-    dot: "#6B4F5B",
-    title: "Söndagar 19:00 är din nya magiska timme",
-    body: "Email skickade vid den här tiden har 38% högre öppningsrate. MUSE föreslår att flytta din veckokampanj från måndag morgon.",
-    actions: [
-      { label: "Tillämpa", href: "/campaigns", primary: false },
-      { label: "Ignorera", href: "#", primary: false },
-    ],
-  },
-];
-
-const MOCK_SEGMENTS = [
-  {
-    id: "vip",
-    name: "VIP-kunder",
-    desc: "Dina bästa kunder med tillgång till VIP-rabatt och exklusiva erbjudanden.",
-    tag: "Topp 5%",
-    gradient: "linear-gradient(135deg, #C9A961 0%, #8A7038 100%)",
-    customers: "312",
-    ltv: "42 800 kr",
-    active: "96%",
-    suggestion: "28 VIP-kunder är på väg bort — skicka personlig win-back med deras rabattkod.",
-  },
-  {
-    id: "stammisar",
-    name: "Stammisar",
-    desc: "Återkommande kunder som handlar regelbundet varje säsong.",
-    tag: "Mest värdefull",
-    gradient: "linear-gradient(135deg, #D4A5A0 0%, #B47A75 100%)",
-    customers: "1 284",
-    ltv: "14 200 kr",
-    active: "92%",
-    suggestion: "Skicka spring lookbook senast 22 maj — 73% sannolikhet att handla.",
-  },
-  {
-    id: "vanner-familj",
-    name: "Vänner & familj",
-    desc: "Nära relationer med tillgång till personlig rabatt och tidig tillgång.",
-    tag: "Friends & family",
-    gradient: "linear-gradient(135deg, #A8B5A0 0%, #6B7A63 100%)",
-    customers: "184",
-    ltv: "9 600 kr",
-    active: "78%",
-    suggestion: "Bjud in till förhandsvisning av FW26 innan den är publik.",
-  },
-];
+const ink = "#1A1614";
+const inkMuted = "#8A6E55";
+const inkSoft = "#5A4232";
+const border = "#DDD0B5";
+const bg = "#FAF5EB";
+const warm = "#F2E8D0";
+const card = "#FFFFFF";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const brandId = await getBrandId();
 
-  const { data: brand } = await supabase
+  const { data: brandsData } = await supabase
     .from("brands")
     .select("name, id")
-    .eq("owner_id", user!.id)
-    .single();
+    .eq("id", brandId)
+    .limit(1);
 
-  const { count: customerCount } = await supabase
-    .from("customers")
-    .select("*", { count: "exact", head: true })
-    .eq("brand_id", brand!.id);
+  const brand = (brandsData?.[0] ?? null) as { id: string; name: string } | null;
 
-  const firstName = (user?.email || "").split("@")[0];
+  const now = new Date();
+  const ninetyDaysAgo = new Date(now.getTime() - 90 * 86_400_000).toISOString();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 86_400_000).toISOString();
+
+  const [
+    { data: customersData, count: totalCustomers },
+    { data: activeData, count: activeCount },
+    { data: newThisMonthData, count: newThisMonth },
+    { data: recentOrdersData },
+    { data: churnRiskData, count: churnRiskCount },
+  ] = await Promise.all([
+    supabase
+      .from("customers")
+      .select("total_spent, order_count", { count: "exact" })
+      .eq("brand_id", brandId),
+    supabase
+      .from("customers")
+      .select("id", { count: "exact" })
+      .eq("brand_id", brandId)
+      .gte("last_order_at", ninetyDaysAgo),
+    supabase
+      .from("customers")
+      .select("id", { count: "exact" })
+      .eq("brand_id", brandId)
+      .gte("created_at", thirtyDaysAgo),
+    supabase
+      .from("orders")
+      .select("id, total, created_at, items, customer_id, customers!inner(first_name, last_name, email, brand_id)")
+      .eq("customers.brand_id", brandId)
+      .order("created_at", { ascending: false })
+      .limit(5),
+    supabase
+      .from("customers")
+      .select("id", { count: "exact" })
+      .eq("brand_id", brandId)
+      .lt("last_order_at", ninetyDaysAgo)
+      .gte("last_order_at", new Date(now.getTime() - 180 * 86_400_000).toISOString()),
+  ]);
+
+  const customers = (customersData ?? []) as { total_spent: number; order_count: number }[];
+  const totalRevenue = customers.reduce((sum, c) => sum + (c.total_spent ?? 0), 0);
+  const totalOrders = customers.reduce((sum, c) => sum + (c.order_count ?? 0), 0);
+  const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+  const recentOrders = ((recentOrdersData ?? []) as unknown[]).map((o) => o as {
+    id: string;
+    total: number;
+    created_at: string;
+    items: unknown[];
+    customer_id: string;
+    customers: { first_name: string | null; last_name: string | null; email: string };
+  });
+
+  const kpis = [
+    {
+      label: "Kunder totalt",
+      value: (totalCustomers ?? 0).toLocaleString("sv"),
+      sub: newThisMonth ? `+${newThisMonth} senaste 30 dagarna` : "Inga nya senaste månaden",
+      positive: (newThisMonth ?? 0) > 0,
+    },
+    {
+      label: "Total omsättning",
+      value: totalRevenue > 0 ? totalRevenue.toLocaleString("sv") + " kr" : "–",
+      sub: `Fördelat på ${totalOrders} ordrar`,
+      positive: true,
+    },
+    {
+      label: "Aktiva kunder",
+      value: (activeCount ?? 0).toLocaleString("sv"),
+      sub: "Köpt senaste 90 dagarna",
+      positive: true,
+    },
+    {
+      label: "Snitt köpvärde",
+      value: avgOrderValue > 0 ? Math.round(avgOrderValue).toLocaleString("sv") + " kr" : "–",
+      sub: "Per order",
+      positive: true,
+    },
+  ];
 
   return (
     <div className="animate-fade-in">
-      {/* Topbar */}
-      <div className="flex justify-between items-center mb-9">
-        <div>
-          <h1
-            className="leading-tight"
-            style={{
-              fontFamily: "var(--font-fraunces), serif",
-              fontWeight: 400,
-              fontSize: 34,
-              letterSpacing: "-0.01em",
-              color: "#1A1614",
-            }}
-          >
-            God morgon, {firstName}.
-          </h1>
-          <p className="mt-1.5" style={{ color: "#8F857E", fontSize: 14 }}>
-            Här är vad MUSE har upptäckt sedan igår.
-          </p>
-        </div>
-        <div className="flex gap-2.5 items-center">
-          <button
-            className="flex items-center gap-1.5 px-4 py-[9px] rounded-lg text-[13px] font-medium transition-all"
-            style={{
-              background: "transparent",
-              color: "#1A1614",
-              border: "1px solid #E8E0D5",
-              fontFamily: "inherit",
-              cursor: "pointer",
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="4" width="18" height="18" rx="2" />
-              <path d="M16 2v4M8 2v4M3 10h18" />
-            </svg>
-            Maj 2026
-          </button>
-          <a
-            href="/campaigns"
-            className="flex items-center gap-1.5 px-4 py-[9px] rounded-lg text-[13px] font-medium transition-all"
-            style={{
-              background: "#1A1614",
-              color: "#FAF7F2",
-              textDecoration: "none",
-              fontFamily: "inherit",
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            Ny kampanj
-          </a>
-        </div>
-      </div>
+      <Greeting brandName={brand?.name} />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-4 gap-4 mb-9">
-        <KpiCard
-          label="Intäkt 30d"
-          value={customerCount && customerCount > 0 ? "—" : "2,84M"}
-          delta="↑ 12,4%"
-          deltaUp
-          meta="vs förra månaden"
-        />
-        <KpiCard
-          label="Aktiva kunder"
-          value={customerCount?.toLocaleString("sv") ?? "0"}
-          delta={customerCount ? `${customerCount} totalt` : "Importera data"}
-          deltaUp={!!customerCount}
-          meta="i databasen"
-        />
-        <KpiCard
-          label="Predikterad intäkt 30d"
-          value="3,21M"
-          delta=""
-          deltaUp
-          meta={<>Konfidens <strong style={{ color: "#1A1614" }}>87%</strong></>}
-        />
-        <KpiCard
-          label="Churn-risk"
-          value="412"
-          delta="↑ 28"
-          deltaUp={false}
-          meta="behöver win-back nu"
-        />
-      </div>
-
-      {/* AI Insights */}
-      <div
-        className="rounded-2xl p-7 mb-10"
-        style={{ background: "#FFFFFF", border: "1px solid #E8E0D5" }}
-      >
-        <div className="flex items-center gap-2.5 mb-5">
-          <div
-            className="w-9 h-9 rounded-full flex items-center justify-center"
-            style={{ background: "#1A1614" }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-              <path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" />
-            </svg>
+      {/* KPI row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        {kpis.map((kpi) => (
+          <div key={kpi.label} className="rounded-2xl p-5" style={{ background: card, border: `1px solid ${border}` }}>
+            <div className="text-[11px] uppercase tracking-[0.08em] font-medium mb-2" style={{ color: inkMuted }}>
+              {kpi.label}
+            </div>
+            <div style={{ fontFamily: "var(--font-fraunces), serif", fontSize: 28, color: ink, lineHeight: 1 }}>
+              {kpi.value}
+            </div>
+            <div className="mt-2 text-[11.5px]" style={{ color: kpi.positive ? "#6B7A63" : "#C45224" }}>
+              {kpi.sub}
+            </div>
           </div>
-          <h3
-            style={{ fontFamily: "var(--font-fraunces), serif", fontWeight: 500, fontSize: 19, color: "#1A1614" }}
-          >
-            MUSE upptäckte i morse
-          </h3>
-          <span className="ml-auto text-xs" style={{ color: "#8F857E" }}>
-            Uppdaterades 06:42
+        ))}
+      </div>
+
+      {/* Featured AI card */}
+      <div className="rounded-2xl overflow-hidden mb-5" style={{ background: card, border: `1px solid ${border}` }}>
+        <div className="relative overflow-hidden" style={{ height: 140, background: "linear-gradient(135deg, #D9896A 0%, #C45224 100%)" }}>
+          <div className="absolute inset-0" style={{ opacity: 0.12, backgroundImage: "radial-gradient(circle at 30% 30%, white 0.5px, transparent 1px)", backgroundSize: "22px 22px" }} />
+          <span className="absolute text-[10.5px] uppercase tracking-[0.1em] font-semibold px-[9px] py-[4px] rounded-xl" style={{ top: 16, left: 20, background: "rgba(255,255,255,0.92)", color: ink }}>
+            Stammisar · Klar att handla
           </span>
         </div>
+        <div style={{ padding: "26px 28px" }}>
+          <h2 className="leading-snug mb-3" style={{ fontFamily: "var(--font-fraunces), serif", fontWeight: 400, fontSize: 26, color: ink, letterSpacing: "-0.01em" }}>
+            Dina stammisar är redo att handla igen
+          </h2>
+          <p className="text-[14px] leading-relaxed mb-5" style={{ color: inkSoft, maxWidth: 560 }}>
+            Kunder i segmentet <strong style={{ color: ink }}>Stammisar</strong> har inte fått ett mejl på 18 dagar. Baserat på deras köpcykel är 73% redo att handla nu — genomsnittlig ordervärde {avgOrderValue > 0 ? Math.round(avgOrderValue).toLocaleString("sv") + " kr" : "1 840 kr"}.
+          </p>
+          <div className="flex gap-2.5">
+            <a href="/campaigns" className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[13px] font-medium" style={{ background: ink, color: bg, textDecoration: "none", fontFamily: "inherit" }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 5v14M5 12h14"/></svg>
+              Skapa kampanj
+            </a>
+            <a href="/segments" className="inline-flex items-center px-4 py-2.5 rounded-xl text-[13px] font-medium" style={{ background: warm, color: ink, textDecoration: "none", fontFamily: "inherit" }}>
+              Visa segment
+            </a>
+          </div>
+        </div>
+      </div>
 
-        <div className="flex flex-col gap-3.5">
-          {MOCK_INSIGHTS.map((insight) => (
-            <div
-              key={insight.id}
-              className="flex gap-3.5 py-3"
-              style={{ borderBottom: "1px solid #E8E0D5" }}
-            >
-              <div
-                className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0"
-                style={{ background: insight.dot }}
-              />
-              <div className="flex-1">
-                <div className="font-semibold text-[13.5px] mb-1" style={{ color: "#1A1614" }}>
-                  {insight.title}
+      {/* Two smaller cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
+        <div className="rounded-2xl overflow-hidden" style={{ background: card, border: `1px solid ${border}` }}>
+          <div className="relative overflow-hidden" style={{ height: 90, background: "linear-gradient(135deg, #C9A961 0%, #8A7038 100%)" }}>
+            <div className="absolute inset-0" style={{ opacity: 0.12, backgroundImage: "radial-gradient(circle at 30% 30%, white 0.5px, transparent 1px)", backgroundSize: "22px 22px" }} />
+            <span className="absolute text-[10.5px] uppercase tracking-[0.1em] font-semibold px-[9px] py-[4px] rounded-xl" style={{ top: 14, left: 16, background: "rgba(255,255,255,0.92)", color: ink }}>
+              VIP · Win-back
+            </span>
+          </div>
+          <div style={{ padding: "22px 24px" }}>
+            <h3 className="leading-snug mb-2" style={{ fontFamily: "var(--font-fraunces), serif", fontWeight: 400, fontSize: 19, color: ink }}>
+              {churnRiskCount ?? 0} kunder visar tecken på att försvinna
+            </h3>
+            <p className="text-[13px] leading-relaxed mb-4" style={{ color: inkSoft }}>
+              Köpfrekvensen har minskat senaste 90 dagarna. Skicka en personlig win-back med exklusiv förhandsvisning.
+            </p>
+            <a href="/customers" className="inline-flex items-center px-4 py-2 rounded-xl text-[13px] font-medium" style={{ background: ink, color: bg, textDecoration: "none", fontFamily: "inherit" }}>
+              Se kunder i riskzon →
+            </a>
+          </div>
+        </div>
+
+        <div className="rounded-2xl overflow-hidden" style={{ background: card, border: `1px solid ${border}` }}>
+          <div className="relative overflow-hidden" style={{ height: 90, background: "linear-gradient(135deg, #673C34 0%, #3A1E10 100%)" }}>
+            <div className="absolute inset-0" style={{ opacity: 0.12, backgroundImage: "radial-gradient(circle at 30% 30%, white 0.5px, transparent 1px)", backgroundSize: "22px 22px" }} />
+            <span className="absolute text-[10.5px] uppercase tracking-[0.1em] font-semibold px-[9px] py-[4px] rounded-xl" style={{ top: 14, left: 16, background: "rgba(255,255,255,0.92)", color: ink }}>
+              Timing · Insikt
+            </span>
+          </div>
+          <div style={{ padding: "22px 24px" }}>
+            <h3 className="leading-snug mb-2" style={{ fontFamily: "var(--font-fraunces), serif", fontWeight: 400, fontSize: 19, color: ink }}>
+              Söndagar 19:00 är din bästa tid att skicka
+            </h3>
+            <p className="text-[13px] leading-relaxed mb-4" style={{ color: inkSoft }}>
+              Mejl skickade vid den här tiden har 38% högre öppningsrate. LUMA föreslår att flytta veckokampanjen från måndag morgon.
+            </p>
+            <a href="/campaigns" className="inline-flex items-center px-4 py-2 rounded-xl text-[13px] font-medium" style={{ background: warm, color: ink, textDecoration: "none", fontFamily: "inherit" }}>
+              Tillämpa på nästa kampanj →
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {/* Recent orders */}
+      {recentOrders.length > 0 && (
+        <div className="rounded-2xl mb-8" style={{ background: card, border: `1px solid ${border}` }}>
+          <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: `1px solid ${border}` }}>
+            <h2 style={{ fontFamily: "var(--font-fraunces), serif", fontWeight: 400, fontSize: 18, color: ink }}>
+              Senaste ordrar
+            </h2>
+            <a href="/customers" className="text-[12px] font-medium" style={{ color: inkMuted, textDecoration: "none" }}>
+              Visa alla kunder →
+            </a>
+          </div>
+          <div>
+            {recentOrders.map((order, i) => {
+              const c = order.customers;
+              const name = [c.first_name, c.last_name].filter(Boolean).join(" ") || c.email;
+              const initials = [c.first_name, c.last_name].filter(Boolean).map((n) => n![0]).join("").toUpperCase() || c.email.slice(0, 2).toUpperCase();
+              const items = Array.isArray(order.items) ? order.items : [];
+              const firstItem = items[0] as Record<string, unknown> | undefined;
+              const itemName = firstItem ? String(firstItem.name ?? firstItem.title ?? "") : "";
+              const extraCount = items.length > 1 ? items.length - 1 : 0;
+              const date = new Date(order.created_at).toLocaleDateString("sv-SE", { day: "numeric", month: "short" });
+
+              return (
+                <div key={order.id} className="flex items-center gap-4 px-6 py-4" style={{ borderBottom: i < recentOrders.length - 1 ? `1px solid ${border}` : "none" }}>
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ background: "linear-gradient(135deg, #D9896A, #C07858)" }}>
+                    {initials}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13.5px] font-semibold" style={{ color: ink }}>{name}</div>
+                    <div className="text-[12px] mt-0.5 truncate" style={{ color: inkMuted }}>
+                      {itemName}{extraCount > 0 ? ` +${extraCount} till` : ""}
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div style={{ fontFamily: "var(--font-fraunces), serif", fontSize: 15, color: ink }}>
+                      {order.total.toLocaleString("sv")} kr
+                    </div>
+                    <div className="text-[11.5px] mt-0.5" style={{ color: inkMuted }}>{date}</div>
+                  </div>
                 </div>
-                <div className="text-[13px] leading-relaxed" style={{ color: "#5C544F" }}>
-                  {insight.body}
-                </div>
-                <div className="flex gap-2 mt-2">
-                  {insight.actions.map((action) => (
-                    <a
-                      key={action.label}
-                      href={action.href}
-                      className="text-[11.5px] px-2.5 py-1 rounded-xl font-medium transition-all"
-                      style={{
-                        background: action.primary ? "#1A1614" : "#F2EDE5",
-                        color: action.primary ? "#FAF7F2" : "#1A1614",
-                        textDecoration: "none",
-                        fontFamily: "inherit",
-                        display: "inline-block",
-                      }}
-                    >
-                      {action.label}
-                    </a>
-                  ))}
-                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Quick links */}
+      <div>
+        <h2 className="mb-4" style={{ fontFamily: "var(--font-fraunces), serif", fontWeight: 400, fontSize: 20, color: ink, letterSpacing: "-0.01em" }}>
+          Snabba vägar
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            {
+              href: "/customers",
+              label: "Kunder",
+              sub: totalCustomers ? `${totalCustomers} kunder` : "Hantera och sök",
+              icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5"><circle cx="12" cy="8" r="4" /><path d="M4 21v-2a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v2" /></svg>,
+            },
+            {
+              href: "/segments",
+              label: "Segment",
+              sub: "3 manuella segment",
+              icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>,
+            },
+            {
+              href: "/campaigns",
+              label: "Kampanjer",
+              sub: "Skapa kampanj",
+              icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5"><path d="M22 2L11 13" /><path d="M22 2L15 22l-4-9-9-4 20-7z" /></svg>,
+            },
+            {
+              href: "/saljare/ny",
+              label: "Säljare",
+              sub: "Team & tilldelning",
+              icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>,
+            },
+          ].map((link) => (
+            <a key={link.href} href={link.href} className="flex flex-col gap-3 rounded-2xl p-5 transition-all" style={{ background: card, border: `1px solid ${border}`, textDecoration: "none" }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: warm, color: ink }}>
+                {link.icon}
               </div>
-            </div>
+              <div>
+                <div className="font-semibold text-[13.5px]" style={{ color: ink }}>{link.label}</div>
+                <div className="text-[12px] mt-0.5" style={{ color: inkMuted }}>{link.sub}</div>
+              </div>
+            </a>
           ))}
         </div>
       </div>
-
-      {/* Segments preview */}
-      <div className="flex justify-between items-baseline mb-4">
-        <h2
-          style={{ fontFamily: "var(--font-fraunces), serif", fontWeight: 400, fontSize: 22, color: "#1A1614", letterSpacing: "-0.01em" }}
-        >
-          Dina segment
-        </h2>
-        <a
-          href="/segments"
-          className="text-[13px] font-medium"
-          style={{
-            color: "#1A1614",
-            textDecoration: "none",
-            borderBottom: "1px solid #1A1614",
-            paddingBottom: 1,
-          }}
-        >
-          Se alla 12 →
-        </a>
-      </div>
-
-      <div className="grid grid-cols-3 gap-4">
-        {MOCK_SEGMENTS.map((seg) => (
-          <SegmentCard key={seg.id} seg={seg} />
-        ))}
-      </div>
     </div>
-  );
-}
-
-function KpiCard({
-  label,
-  value,
-  delta,
-  deltaUp,
-  meta,
-}: {
-  label: string;
-  value: string;
-  delta: string;
-  deltaUp: boolean;
-  meta: React.ReactNode;
-}) {
-  return (
-    <div
-      className="rounded-2xl transition-all"
-      style={{
-        background: "#FFFFFF",
-        border: "1px solid #E8E0D5",
-        padding: "20px 22px",
-      }}
-    >
-      <div
-        className="text-[11.5px] uppercase tracking-[0.1em] font-medium"
-        style={{ color: "#8F857E" }}
-      >
-        {label}
-      </div>
-      <div
-        className="mt-2.5"
-        style={{
-          fontFamily: "var(--font-fraunces), serif",
-          fontSize: 32,
-          fontWeight: 400,
-          color: "#1A1614",
-          letterSpacing: "-0.02em",
-        }}
-      >
-        {value}
-      </div>
-      <div className="flex items-center gap-1.5 mt-2 text-xs" style={{ color: "#5C544F" }}>
-        {delta && (
-          <span style={{ color: deltaUp ? "#6B7A63" : "#B47A75", fontWeight: 600 }}>
-            {delta}
-          </span>
-        )}
-        <span>{meta}</span>
-      </div>
-    </div>
-  );
-}
-
-function SegmentCard({ seg }: {
-  seg: {
-    id: string;
-    name: string;
-    desc: string;
-    tag: string;
-    gradient: string;
-    customers: string;
-    ltv: string;
-    active: string;
-    suggestion: string;
-  };
-}) {
-  return (
-    <a
-      href={`/segments/${seg.id}`}
-      className="flex flex-col rounded-2xl overflow-hidden transition-all group"
-      style={{
-        background: "#FFFFFF",
-        border: "1px solid #E8E0D5",
-        textDecoration: "none",
-      }}
-    >
-      {/* Mood header */}
-      <div
-        className="relative overflow-hidden"
-        style={{ height: 110, background: seg.gradient }}
-      >
-        {/* Dot pattern */}
-        <div
-          className="absolute inset-0"
-          style={{
-            opacity: 0.15,
-            backgroundImage: "radial-gradient(circle at 30% 30%, white 0.5px, transparent 1px)",
-            backgroundSize: "22px 22px",
-          }}
-        />
-        <span
-          className="absolute text-[10.5px] uppercase tracking-[0.08em] font-semibold px-[9px] py-[4px] rounded-xl"
-          style={{
-            top: 14,
-            left: 16,
-            background: "rgba(255,255,255,0.92)",
-            color: "#1A1614",
-            backdropFilter: "blur(8px)",
-          }}
-        >
-          {seg.tag}
-        </span>
-      </div>
-
-      {/* Body */}
-      <div className="p-5 flex flex-col flex-1">
-        <div
-          style={{ fontFamily: "var(--font-fraunces), serif", fontSize: 19, fontWeight: 500, color: "#1A1614", letterSpacing: "-0.01em" }}
-        >
-          {seg.name}
-        </div>
-        <div className="mt-1 text-[13px] leading-snug" style={{ color: "#5C544F" }}>
-          {seg.desc}
-        </div>
-
-        {/* Stats */}
-        <div
-          className="flex justify-between mt-4 pt-3.5"
-          style={{ borderTop: "1px solid #E8E0D5" }}
-        >
-          <div>
-            <div className="text-[10.5px] uppercase tracking-[0.08em] font-medium" style={{ color: "#8F857E" }}>Kunder</div>
-            <div style={{ fontFamily: "var(--font-fraunces), serif", fontSize: 17, color: "#1A1614", marginTop: 2 }}>{seg.customers}</div>
-          </div>
-          <div>
-            <div className="text-[10.5px] uppercase tracking-[0.08em] font-medium" style={{ color: "#8F857E" }}>Snitt LTV</div>
-            <div style={{ fontFamily: "var(--font-fraunces), serif", fontSize: 17, color: "#1A1614", marginTop: 2 }}>{seg.ltv}</div>
-          </div>
-          <div>
-            <div className="text-[10.5px] uppercase tracking-[0.08em] font-medium" style={{ color: "#8F857E" }}>Aktiv</div>
-            <div style={{ fontFamily: "var(--font-fraunces), serif", fontSize: 17, color: "#1A1614", marginTop: 2 }}>{seg.active}</div>
-          </div>
-        </div>
-
-        {/* AI suggestion */}
-        <div
-          className="flex gap-2.5 items-start rounded-xl mt-4"
-          style={{ background: "#F2EDE5", padding: "11px 13px" }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="#B47A75" className="flex-shrink-0 mt-0.5">
-            <path d="M12 2l2 6h6l-5 4 2 7-5-4-5 4 2-7-5-4h6z" />
-          </svg>
-          <div className="text-[12.5px] leading-snug" style={{ color: "#5C544F" }}>
-            <strong style={{ color: "#1A1614" }}>{seg.suggestion.split(" — ")[0]}</strong>
-            {seg.suggestion.includes(" — ") ? ` — ${seg.suggestion.split(" — ")[1]}` : ""}
-          </div>
-        </div>
-      </div>
-    </a>
   );
 }
