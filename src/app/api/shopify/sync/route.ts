@@ -28,15 +28,33 @@ interface ShopifyOrder {
   line_items: ShopifyLineItem[];
 }
 
-async function shopifyFetch(domain: string, token: string, path: string) {
-  const res = await fetch(`https://${domain}/admin/api/2024-01/${path}`, {
+// Shopify uses cursor-based pagination via Link response headers.
+// Returns { data, nextPageInfo } where nextPageInfo is null on last page.
+async function shopifyFetch(
+  domain: string,
+  token: string,
+  path: string,
+  pageInfo?: string
+): Promise<{ data: unknown; nextPageInfo: string | null }> {
+  const url = pageInfo
+    ? `https://${domain}/admin/api/2024-01/${path}?limit=250&page_info=${pageInfo}`
+    : `https://${domain}/admin/api/2024-01/${path}?limit=250`;
+
+  const res = await fetch(url, {
     headers: {
       "X-Shopify-Access-Token": token,
       "Content-Type": "application/json",
     },
   });
+
   if (!res.ok) throw new Error(`Shopify API fel: ${res.status} ${await res.text()}`);
-  return res.json();
+
+  // Parse cursor from Link header: <url>; rel="next"
+  const linkHeader = res.headers.get("Link") ?? "";
+  const nextMatch = linkHeader.match(/<[^>]*[?&]page_info=([^&>]+)[^>]*>;\s*rel="next"/);
+  const nextPageInfo = nextMatch ? nextMatch[1] : null;
+
+  return { data: await res.json(), nextPageInfo };
 }
 
 export async function POST() {
@@ -64,10 +82,13 @@ export async function POST() {
 
   // --- Kunder ---
   try {
-    let page = 1;
+    let pageInfo: string | undefined = undefined;
+    let isFirst = true;
+
     while (true) {
-      const data = await shopifyFetch(domain, token, `customers.json?limit=250&page=${page}`) as { customers: ShopifyCustomer[] };
-      const customers = data.customers ?? [];
+      const { data, nextPageInfo } = await shopifyFetch(domain, token, "customers.json", isFirst ? undefined : pageInfo);
+      isFirst = false;
+      const customers = (data as { customers: ShopifyCustomer[] }).customers ?? [];
       if (customers.length === 0) break;
 
       for (const c of customers) {
@@ -89,8 +110,8 @@ export async function POST() {
         else customersImported++;
       }
 
-      if (customers.length < 250) break;
-      page++;
+      if (!nextPageInfo) break;
+      pageInfo = nextPageInfo;
     }
   } catch (e) {
     return Response.json({ error: `Kunde inte hämta kunder: ${e instanceof Error ? e.message : "Okänt fel"}` }, { status: 500 });
@@ -98,10 +119,13 @@ export async function POST() {
 
   // --- Ordrar ---
   try {
-    let page = 1;
+    let pageInfo: string | undefined = undefined;
+    let isFirst = true;
+
     while (true) {
-      const data = await shopifyFetch(domain, token, `orders.json?limit=250&page=${page}&status=any`) as { orders: ShopifyOrder[] };
-      const orders = data.orders ?? [];
+      const { data, nextPageInfo } = await shopifyFetch(domain, token, "orders.json?status=any", isFirst ? undefined : pageInfo);
+      isFirst = false;
+      const orders = (data as { orders: ShopifyOrder[] }).orders ?? [];
       if (orders.length === 0) break;
 
       for (const o of orders) {
@@ -135,14 +159,13 @@ export async function POST() {
         else ordersImported++;
       }
 
-      if (orders.length < 250) break;
-      page++;
+      if (!nextPageInfo) break;
+      pageInfo = nextPageInfo;
     }
   } catch (e) {
     return Response.json({ error: `Kunde inte hämta ordrar: ${e instanceof Error ? e.message : "Okänt fel"}` }, { status: 500 });
   }
 
-  // Uppdatera synktid
   await supabase.from("brands").update({ shopify_synced_at: new Date().toISOString() }).eq("id", brandId);
 
   return Response.json({ customersImported, ordersImported, errors: errors.slice(0, 10) });
