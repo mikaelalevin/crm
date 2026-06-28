@@ -315,7 +315,7 @@ export function CustomerDetail({ customer, salesReps, orders, sessions, aiPredic
 
   const pred = aiPrediction ?? generatePrediction(customer, orders);
   const isAi = !!aiPrediction;
-  const resolvedBrandName = brandName ?? "LUMA";
+  const resolvedBrandName = brandName ?? "HERIA";
 
   return (
     <div className="animate-fade-in">
@@ -371,7 +371,7 @@ export function CustomerDetail({ customer, salesReps, orders, sessions, aiPredic
             ))}
           </div>
 
-          {/* LUMA-prediktion */}
+          {/* HERIA-prediktion */}
           <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${border}` }}>
             <div className="relative px-6 py-4 flex items-center justify-between" style={{ background: "linear-gradient(135deg, #1A1614 0%, #3D2B22 100%)" }}>
               <div className="flex items-center gap-2.5">
@@ -379,7 +379,7 @@ export function CustomerDetail({ customer, salesReps, orders, sessions, aiPredic
                   <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                 </svg>
                 <span className="text-[10.5px] uppercase tracking-[0.12em] font-semibold" style={{ color: "rgba(255,255,255,0.6)" }}>
-                  LUMA-prediktion{isAi ? " · AI" : ""}
+                  HERIA-prediktion{isAi ? " · AI" : ""}
                 </span>
               </div>
               <span className="text-[11px] font-semibold px-2.5 py-1 rounded-lg" style={{ background: "rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.9)" }}>

@@ -19,7 +19,7 @@ export function Greeting({ brandName }: { brandName?: string }) {
         {getGreeting()}{brandName ? `, ${brandName}` : ""}.
       </h1>
       <p className="mt-1.5" style={{ color: inkMuted, fontSize: 14 }}>
-        LUMA har 3 förslag för dig idag.
+        HERIA har 3 förslag för dig idag.
       </p>
     </div>
   );

@@ -37,8 +37,8 @@ async function shopifyFetch(
   pageInfo?: string
 ): Promise<{ data: unknown; nextPageInfo: string | null }> {
   const url = pageInfo
-    ? `https://${domain}/admin/api/2024-01/${path}?limit=250&page_info=${pageInfo}`
-    : `https://${domain}/admin/api/2024-01/${path}?limit=250`;
+    ? `https://${domain}/admin/api/2025-01/${path}?limit=250&page_info=${pageInfo}`
+    : `https://${domain}/admin/api/2025-01/${path}?limit=250`;
 
   const res = await fetch(url, {
     headers: {

@@ -32,7 +32,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen" style={{ background: "#FAF5EB" }}>
       <Sidebar
-        brandName={brandData?.name ?? "LUMA"}
+        brandName={brandData?.name ?? "HERIA"}
         userInitials={initials}
         userEmail={user?.email ?? ""}
         salesReps={salesReps}
