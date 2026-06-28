@@ -16,6 +16,7 @@ interface SalesRep {
   id: string;
   name: string;
   color: string;
+  email: string | null;
 }
 
 const ink = "#1A1614";
@@ -111,6 +112,9 @@ export function SaljareView({
             <p style={{ color: inkMuted, fontSize: 14 }}>
               {assigned.length} kunder{totalLTV > 0 ? ` · ${totalLTV.toLocaleString("sv")} kr totalt köpvärde` : ""}
             </p>
+            {rep.email && (
+              <p className="text-[12.5px] mt-0.5" style={{ color: inkMuted }}>{rep.email}</p>
+            )}
           </div>
         </div>
         <button

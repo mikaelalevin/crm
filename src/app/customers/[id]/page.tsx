@@ -23,7 +23,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
       .single(),
     supabase
       .from("sales_reps")
-      .select("id, name, color")
+      .select("id, name, color, email")
       .eq("brand_id", brandId)
       .order("name"),
     supabase
@@ -55,7 +55,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
     ai_prediction: Record<string, unknown> | null; ai_prediction_at: string | null;
   };
 
-  const salesReps = (repsData ?? []) as { id: string; name: string; color: string }[];
+  const salesReps = (repsData ?? []) as { id: string; name: string; color: string; email: string | null }[];
 
   const orders = (ordersData ?? []) as {
     id: string; total: number; created_at: string;

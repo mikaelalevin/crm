@@ -12,6 +12,7 @@ const COLORS = [
 export default function NySaljare() {
   const router = useRouter();
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [color, setColor] = useState(COLORS[0]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -43,7 +44,7 @@ export default function NySaljare() {
 
     const { data, error: err } = await supabase
       .from("sales_reps")
-      .insert({ brand_id: brandId, name: name.trim(), color })
+      .insert({ brand_id: brandId, name: name.trim(), email: email.trim().toLowerCase() || null, color })
       .select("id")
       .single();
 
@@ -93,6 +94,25 @@ export default function NySaljare() {
               onFocus={(e) => (e.target.style.borderColor = ink)}
               onBlur={(e) => (e.target.style.borderColor = border)}
             />
+          </div>
+
+          <div>
+            <label className="block text-[11px] uppercase tracking-[0.1em] font-semibold mb-2" style={{ color: inkMuted }}>
+              Jobbmail
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="t.ex. mikaela@studioacacia.se"
+              className="w-full px-4 py-3 rounded-xl text-sm outline-none"
+              style={{ background: bg, border: `1px solid ${border}`, color: ink, fontFamily: "inherit" }}
+              onFocus={(e) => (e.target.style.borderColor = ink)}
+              onBlur={(e) => (e.target.style.borderColor = border)}
+            />
+            <p className="text-[11.5px] mt-1.5" style={{ color: inkMuted }}>
+              Används som avsändare i AI-genererade meddelanden.
+            </p>
           </div>
 
           <div>

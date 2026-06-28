@@ -18,13 +18,13 @@ export default async function SaljareDetailPage({ params }: { params: Promise<{ 
 
   const { data: repData } = await supabase
     .from("sales_reps")
-    .select("id, name, color")
+    .select("id, name, color, email")
     .eq("id", id)
     .single();
 
   if (!repData) notFound();
 
-  const rep = repData as { id: string; name: string; color: string };
+  const rep = repData as { id: string; name: string; color: string; email: string | null };
 
   // Get brand id via the rep
   const { data: brandsData } = await supabase

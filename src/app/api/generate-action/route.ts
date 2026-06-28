@@ -16,9 +16,11 @@ export async function POST(request: Request) {
       confidence: number;
       reason: string;
     };
+    rep_name?: string | null;
+    rep_email?: string | null;
   };
 
-  const { customer_id, prediction } = body;
+  const { customer_id, prediction, rep_name, rep_email } = body;
   if (!customer_id) return Response.json({ error: "customer_id krävs" }, { status: 400 });
 
   const brandId = await getBrandId();
@@ -110,7 +112,7 @@ INSTRUKTIONER:
 - Nämn ett specifikt plagg eller kategori kopplat till prediktionen — naturligt, inte påtvingat
 - Max 4 meningar — kortare är bättre
 - Avsluta med ett konkret nästa steg: boka tid, kom in, ta en titt
-- Signera som "teamet på ${brand.name}" — säljaren fyller i sitt eget namn
+- Signera med säljarens namn: "${rep_name ?? "teamet på " + brand.name}"${rep_email ? ` och e-post: ${rep_email}` : ""}
 - Inga emojis, inga utropstecken i onödan
 - Känn igen kunden som en stammis om de handlat mer än 2 ggr
 

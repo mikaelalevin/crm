@@ -49,6 +49,7 @@ interface SalesRep {
   id: string;
   name: string;
   color: string;
+  email: string | null;
 }
 
 const ink = "#1A1614";
@@ -333,6 +334,8 @@ export function CustomerDetail({ customer, salesReps, orders, sessions, aiPredic
             confidence: pred.confidence,
             reason: pred.reason,
           },
+          rep_name: assignedRep?.name ?? null,
+          rep_email: assignedRep?.email ?? null,
         }),
       });
       const data = await res.json() as { message?: string; error?: string };
