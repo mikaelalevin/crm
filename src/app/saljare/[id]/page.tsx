@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getBrandId } from "@/lib/brand";
 import { SaljareView } from "./SaljareView";
 
 interface Customer {
@@ -26,15 +27,7 @@ export default async function SaljareDetailPage({ params }: { params: Promise<{ 
 
   const rep = repData as { id: string; name: string; color: string; email: string | null };
 
-  // Get brand id via the rep
-  const { data: brandsData } = await supabase
-    .from("brands")
-    .select("id")
-    .eq("owner_id", (await supabase.auth.getUser()).data.user!.id)
-    .order("created_at")
-    .limit(1);
-
-  const brandId = (brandsData?.[0] as { id: string } | undefined)?.id ?? "";
+  const brandId = await getBrandId();
 
   // Fetch all brand customers
   const { data: allCustomersData } = await supabase
