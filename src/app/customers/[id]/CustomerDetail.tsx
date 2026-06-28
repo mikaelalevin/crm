@@ -402,7 +402,7 @@ export function CustomerDetail({ customer, salesReps, orders, sessions, aiPredic
         <div className="flex flex-col gap-5">
 
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-3" style={{ order: editing ? 2 : 0 }}>
             {[
               { label: "Totalt köpvärde", value: customer.total_spent ? customer.total_spent.toLocaleString("sv") + " kr" : "–" },
               { label: "Antal köp", value: customer.order_count?.toString() ?? "0" },
@@ -416,7 +416,7 @@ export function CustomerDetail({ customer, salesReps, orders, sessions, aiPredic
           </div>
 
           {/* HERIA-prediktion */}
-          <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${border}` }}>
+          <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${border}`, order: editing ? 3 : 1 }}>
             <div className="relative px-6 py-4 flex items-center justify-between" style={{ background: "linear-gradient(135deg, #1A1614 0%, #3D2B22 100%)" }}>
               <div className="flex items-center gap-2.5">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" style={{ opacity: 0.7 }}>
@@ -479,7 +479,7 @@ export function CustomerDetail({ customer, salesReps, orders, sessions, aiPredic
           </div>
 
           {/* Åtgärder */}
-          <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${border}` }}>
+          <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${border}`, order: editing ? 4 : 2 }}>
             <div className="px-6 py-4 flex items-center gap-2.5" style={{ background: warm }}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={ink} strokeWidth="1.8">
                 <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
@@ -563,7 +563,8 @@ export function CustomerDetail({ customer, salesReps, orders, sessions, aiPredic
             </div>
           </div>
 
-          {/* Contact info */}
+          {/* Contact info + form — lyfts upp vid redigering */}
+          <div className="flex flex-col gap-5" style={{ order: editing ? 0 : 3 }}>
           {success && (
             <div className="px-4 py-3 rounded-xl text-[13px]" style={{ background: "#DDE7D7", color: "#3E4F36" }}>
               Ändringarna är sparade.
@@ -662,6 +663,7 @@ export function CustomerDetail({ customer, salesReps, orders, sessions, aiPredic
               </div>
             )}
           </form>
+          </div>{/* end contact+form wrapper */}
         </div>
 
         {/* RIGHT COLUMN */}
