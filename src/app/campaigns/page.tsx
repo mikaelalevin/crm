@@ -31,7 +31,7 @@ Studio Acacia`);
             Ny kampanj
           </h1>
           <p className="mt-1.5" style={{ color: inkMuted, fontSize: 14 }}>
-            LUMA föreslår innehåll baserat på det valda segmentet.
+            HERIA föreslår innehåll baserat på det valda segmentet.
           </p>
         </div>
         <div className="flex gap-2.5">
@@ -67,7 +67,7 @@ Studio Acacia`);
             <div className="flex gap-2.5 items-start mt-3.5 rounded-xl px-3.5 py-3" style={{ background: warm }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="#C45224" className="flex-shrink-0 mt-0.5"><path d="M12 2l2 6h6l-5 4 2 7-5-4-5 4 2-7-5-4h6z"/></svg>
               <div className="text-[13px] leading-relaxed" style={{ color: inkSoft }}>
-                <strong style={{ color: ink }}>LUMA rekommenderar Stammisar</strong> — 937 av 1 284 är redo att handla nu. Förväntad ROI: <strong style={{ color: ink }}>1 720 000 kr</strong>.
+                <strong style={{ color: ink }}>HERIA rekommenderar Stammisar</strong> — 937 av 1 284 är redo att handla nu. Förväntad ROI: <strong style={{ color: ink }}>1 720 000 kr</strong>.
               </div>
             </div>
           </div>
@@ -111,7 +111,7 @@ Studio Acacia`);
               style={{ background: ink, color: bg, border: "none", cursor: "pointer", fontFamily: "inherit" }}
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2 6h6l-5 4 2 7-5-4-5 4 2-7-5-4h6z"/></svg>
-              LUMA har skrivit ett förslag
+              HERIA har skrivit ett förslag
             </button>
 
             <div className="text-[11.5px] uppercase tracking-[0.1em] font-semibold mb-2" style={{ color: inkMuted }}>Ämnesrad</div>
@@ -196,7 +196,7 @@ Studio Acacia`);
               Se din edit →
             </div>
             <div className="mt-6 pt-4.5 text-[11px] text-center" style={{ borderTop: `1px solid ${border}`, color: inkMuted }}>
-              Skickat med LUMA
+              Skickat med HERIA
             </div>
           </div>
         </div>
