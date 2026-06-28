@@ -229,6 +229,10 @@ export function CustomerDetail({ customer, salesReps, orders, sessions, aiPredic
   const [generatingAi, setGeneratingAi] = useState(false);
   const [aiError, setAiError] = useState("");
   const [openReceipts, setOpenReceipts] = useState<Record<string, boolean>>({});
+  const [generatingMessage, setGeneratingMessage] = useState(false);
+  const [generatedMessage, setGeneratedMessage] = useState("");
+  const [messageError, setMessageError] = useState("");
+  const [copied, setCopied] = useState(false);
 
   const [firstName, setFirstName] = useState(customer.first_name ?? "");
   const [lastName, setLastName] = useState(customer.last_name ?? "");
@@ -311,6 +315,43 @@ export function CustomerDetail({ customer, salesReps, orders, sessions, aiPredic
     } finally {
       setGeneratingAi(false);
     }
+  }
+
+  async function generateMessage() {
+    setGeneratingMessage(true);
+    setMessageError("");
+    try {
+      const res = await fetch("/api/generate-action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customer_id: customer.id,
+          prediction: {
+            product: pred.product,
+            date: pred.date,
+            daysUntil: pred.daysUntil,
+            confidence: pred.confidence,
+            reason: pred.reason,
+          },
+        }),
+      });
+      const data = await res.json() as { message?: string; error?: string };
+      if (!res.ok || data.error) {
+        setMessageError(data.error ?? "Kunde inte generera meddelande");
+      } else if (data.message) {
+        setGeneratedMessage(data.message);
+      }
+    } catch {
+      setMessageError("Nätverksfel — försök igen");
+    } finally {
+      setGeneratingMessage(false);
+    }
+  }
+
+  async function copyMessage() {
+    await navigator.clipboard.writeText(generatedMessage);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
   const pred = aiPrediction ?? generatePrediction(customer, orders);
@@ -431,6 +472,91 @@ export function CustomerDetail({ customer, salesReps, orders, sessions, aiPredic
                   </>
                 )}
               </button>
+            </div>
+          </div>
+
+          {/* Åtgärder */}
+          <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${border}` }}>
+            <div className="px-6 py-4 flex items-center gap-2.5" style={{ background: warm }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={ink} strokeWidth="1.8">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                <polyline points="22,6 12,13 2,6"/>
+              </svg>
+              <span className="text-[10.5px] uppercase tracking-[0.12em] font-semibold" style={{ color: inkMuted }}>
+                Åtgärder
+              </span>
+            </div>
+            <div className="px-6 py-5 flex flex-col gap-4" style={{ background: "#FFFFFF" }}>
+              <p className="text-[13px] leading-relaxed" style={{ color: inkMuted }}>
+                Generera ett personligt meddelande baserat på prediktionen — klart att skicka direkt.
+              </p>
+              {messageError && (
+                <p className="text-[12px]" style={{ color: "#C45224" }}>{messageError}</p>
+              )}
+              {generatedMessage ? (
+                <div className="flex flex-col gap-3">
+                  <textarea
+                    value={generatedMessage}
+                    onChange={(e) => setGeneratedMessage(e.target.value)}
+                    rows={6}
+                    className="w-full px-4 py-3 rounded-xl text-[13px] outline-none"
+                    style={{ background: bg, border: `1px solid ${border}`, color: ink, fontFamily: "inherit", lineHeight: 1.65, resize: "vertical" }}
+                    onFocus={(e) => (e.target.style.borderColor = ink)}
+                    onBlur={(e) => (e.target.style.borderColor = border)}
+                  />
+                  <div className="flex gap-2.5">
+                    <button
+                      onClick={copyMessage}
+                      className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-2 rounded-lg flex-1 justify-center"
+                      style={{ background: copied ? "#DDE7D7" : ink, color: copied ? "#3E4F36" : bg, border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                    >
+                      {copied ? (
+                        <>
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                          Kopierat!
+                        </>
+                      ) : (
+                        <>
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                          Kopiera
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={generateMessage}
+                      disabled={generatingMessage}
+                      className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-2 rounded-lg"
+                      style={{ background: "transparent", color: inkMuted, border: `1px solid ${border}`, cursor: generatingMessage ? "not-allowed" : "pointer", fontFamily: "inherit" }}
+                    >
+                      {generatingMessage ? (
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                      ) : (
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg>
+                      )}
+                      Generera nytt
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={generateMessage}
+                  disabled={generatingMessage}
+                  className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-2 rounded-lg self-start"
+                  style={{ background: generatingMessage ? warm : ink, color: generatingMessage ? inkMuted : bg, border: "none", cursor: generatingMessage ? "not-allowed" : "pointer", fontFamily: "inherit" }}
+                >
+                  {generatingMessage ? (
+                    <>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                      Skriver meddelande...
+                    </>
+                  ) : (
+                    <>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                      Generera personligt meddelande
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </div>
 
