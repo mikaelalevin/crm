@@ -1,431 +1,351 @@
 import { createClient } from "@/lib/supabase/server";
+import { getBrandId } from "@/lib/brand";
+import { Greeting } from "./Greeting";
 
-const MOCK_INSIGHTS = [
-  {
-    id: "1",
-    dot: "#B47A75",
-    title: "Dina stammisar är redo att handla igen",
-    body: "214 kunder i segmentet Stammisar har inte fått ett mejl på 18 dagar. Baserat på deras tidigare köpcykel är 73% redo att handla nu. Genomsnittlig ordervärde: 1 840 kr.",
-    actions: [
-      { label: "Skapa kampanj", href: "/campaigns", primary: true },
-      { label: "Visa segment", href: "/segments", primary: false },
-    ],
-  },
-  {
-    id: "2",
-    dot: "#C9A961",
-    title: "28 VIP-kunder visar tecken på att gå förlorade",
-    body: "De har minskat sin köpfrekvens med 60% senaste 90 dagarna. Föreslagen åtgärd: personlig win-back med exklusiv förhandsvisning av FW26-kollektionen och deras VIP-rabatt.",
-    actions: [
-      { label: "Skicka VIP-erbjudande", href: "/campaigns", primary: true },
-      { label: "Se kunder", href: "/customers", primary: false },
-    ],
-  },
-  {
-    id: "3",
-    dot: "#6B7A63",
-    title: '"Linen Mini Dress" predikteras bli bästsäljare i juni',
-    body: "Baserat på säsongstrender och kundernas wishlist-aktivitet. 1 247 kunder har lagt den i favoriter. Rekommendation: lansera lookbook 25 maj.",
-    actions: [{ label: "Planera lansering", href: "/campaigns", primary: true }],
-  },
-  {
-    id: "4",
-    dot: "#6B4F5B",
-    title: "Söndagar 19:00 är din nya magiska timme",
-    body: "Email skickade vid den här tiden har 38% högre öppningsrate. MUSE föreslår att flytta din veckokampanj från måndag morgon.",
-    actions: [
-      { label: "Tillämpa", href: "/campaigns", primary: false },
-      { label: "Ignorera", href: "#", primary: false },
-    ],
-  },
-];
+const ink = "#1A1614";
+const inkMuted = "#8A6E55";
+const inkSoft = "#5A4232";
+const border = "#DDD0B5";
+const bg = "#FAF5EB";
+const warm = "#F2E8D0";
+const card = "#FFFFFF";
 
-const MOCK_SEGMENTS = [
-  {
-    id: "vip",
-    name: "VIP-kunder",
-    desc: "Dina bästa kunder med tillgång till VIP-rabatt och exklusiva erbjudanden.",
-    tag: "Topp 5%",
-    gradient: "linear-gradient(135deg, #C9A961 0%, #8A7038 100%)",
-    customers: "312",
-    ltv: "42 800 kr",
-    active: "96%",
-    suggestion: "28 VIP-kunder är på väg bort — skicka personlig win-back med deras rabattkod.",
-  },
-  {
-    id: "stammisar",
-    name: "Stammisar",
-    desc: "Återkommande kunder som handlar regelbundet varje säsong.",
-    tag: "Mest värdefull",
-    gradient: "linear-gradient(135deg, #D4A5A0 0%, #B47A75 100%)",
-    customers: "1 284",
-    ltv: "14 200 kr",
-    active: "92%",
-    suggestion: "Skicka spring lookbook senast 22 maj — 73% sannolikhet att handla.",
-  },
-  {
-    id: "vanner-familj",
-    name: "Vänner & familj",
-    desc: "Nära relationer med tillgång till personlig rabatt och tidig tillgång.",
-    tag: "Friends & family",
-    gradient: "linear-gradient(135deg, #A8B5A0 0%, #6B7A63 100%)",
-    customers: "184",
-    ltv: "9 600 kr",
-    active: "78%",
-    suggestion: "Bjud in till förhandsvisning av FW26 innan den är publik.",
-  },
-];
+interface AiPrediction {
+  product: string;
+  date: string;
+  daysUntil: number;
+  confidence: number;
+  reason: string;
+  generatedAt: string;
+}
+
+const AVATAR_COLORS = ["#D9896A", "#A8B5A0", "#C9A961", "#B47A75", "#6B4F5B", "#6B7A63"];
 
 export default async function DashboardPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const brandId = await getBrandId();
 
-  const { data: brand } = await supabase
+  const { data: brandsData } = await supabase
     .from("brands")
     .select("name, id")
-    .eq("owner_id", user!.id)
-    .single();
+    .eq("id", brandId)
+    .limit(1);
 
-  const { count: customerCount } = await supabase
+  const brand = (brandsData?.[0] ?? null) as { id: string; name: string } | null;
+
+  const now = new Date();
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 86_400_000).toISOString();
+  const fourteenDaysAgo = new Date(now.getTime() - 14 * 86_400_000).toISOString();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 86_400_000).toISOString();
+  const ninetyDaysAgo = new Date(now.getTime() - 90 * 86_400_000).toISOString();
+
+  const { data: customersData } = await supabase
     .from("customers")
-    .select("*", { count: "exact", head: true })
-    .eq("brand_id", brand!.id);
+    .select("id, total_spent, order_count, last_order_at, created_at, first_name, last_name, email, ai_prediction")
+    .eq("brand_id", brandId);
 
-  const firstName = (user?.email || "").split("@")[0];
+  const customers = (customersData ?? []) as {
+    id: string; total_spent: number | null; order_count: number | null;
+    last_order_at: string | null; created_at: string;
+    first_name: string | null; last_name: string | null; email: string;
+    ai_prediction: AiPrediction | null;
+  }[];
+
+  const aiSignals = customers
+    .filter((c) => c.ai_prediction && typeof c.ai_prediction.daysUntil === "number")
+    .map((c) => {
+      const pred = c.ai_prediction!;
+      const genDate = new Date(pred.generatedAt);
+      genDate.setDate(genDate.getDate() + pred.daysUntil);
+      const actualDaysUntil = Math.max(0, Math.round((genDate.getTime() - Date.now()) / 86_400_000));
+      return { ...c, prediction: pred, actualDaysUntil };
+    })
+    .sort((a, b) => a.actualDaysUntil - b.actualDaysUntil)
+    .slice(0, 4);
+  const customerIds = customers.map((c) => c.id);
+
+  const [
+    { data: thisWeekOrders },
+    { data: lastWeekOrders },
+    { data: recentOrdersData },
+  ] = await Promise.all([
+    customerIds.length > 0
+      ? supabase.from("orders").select("total, created_at").in("customer_id", customerIds).gte("created_at", sevenDaysAgo)
+      : { data: [] },
+    customerIds.length > 0
+      ? supabase.from("orders").select("total").in("customer_id", customerIds).gte("created_at", fourteenDaysAgo).lt("created_at", sevenDaysAgo)
+      : { data: [] },
+    supabase
+      .from("orders")
+      .select("id, total, created_at, items, customer_id, customers!inner(first_name, last_name, email, brand_id)")
+      .eq("customers.brand_id", brandId)
+      .order("created_at", { ascending: false })
+      .limit(6),
+  ]);
+
+  const totalRevenue = customers.reduce((s, c) => s + (c.total_spent ?? 0), 0);
+  const totalCustomers = customers.length;
+  const newThisMonth = customers.filter((c) => c.created_at >= thirtyDaysAgo).length;
+  const churnRisk = customers.filter((c) => c.last_order_at && c.last_order_at < ninetyDaysAgo).length;
+  const totalOrders = customers.reduce((s, c) => s + (c.order_count ?? 0), 0);
+  const avgOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
+
+  const thisWeekRevenue = ((thisWeekOrders ?? []) as { total: number }[]).reduce((s, o) => s + o.total, 0);
+  const lastWeekRevenue = ((lastWeekOrders ?? []) as { total: number }[]).reduce((s, o) => s + o.total, 0);
+  const thisWeekOrderCount = (thisWeekOrders ?? []).length;
+  const weekChange = lastWeekRevenue > 0
+    ? Math.round(((thisWeekRevenue - lastWeekRevenue) / lastWeekRevenue) * 100)
+    : null;
+
+  const recentOrders = ((recentOrdersData ?? []) as unknown[]).map((o) => o as {
+    id: string; total: number; created_at: string; items: unknown[];
+    customer_id: string;
+    customers: { first_name: string | null; last_name: string | null; email: string };
+  });
 
   return (
     <div className="animate-fade-in">
-      {/* Topbar */}
-      <div className="flex justify-between items-center mb-9">
-        <div>
-          <h1
-            className="leading-tight"
-            style={{
-              fontFamily: "var(--font-fraunces), serif",
-              fontWeight: 400,
-              fontSize: 34,
-              letterSpacing: "-0.01em",
-              color: "#1A1614",
-            }}
-          >
-            God morgon, {firstName}.
-          </h1>
-          <p className="mt-1.5" style={{ color: "#8F857E", fontSize: 14 }}>
-            Här är vad MUSE har upptäckt sedan igår.
-          </p>
-        </div>
-        <div className="flex gap-2.5 items-center">
-          <button
-            className="flex items-center gap-1.5 px-4 py-[9px] rounded-lg text-[13px] font-medium transition-all"
-            style={{
-              background: "transparent",
-              color: "#1A1614",
-              border: "1px solid #E8E0D5",
-              fontFamily: "inherit",
-              cursor: "pointer",
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="4" width="18" height="18" rx="2" />
-              <path d="M16 2v4M8 2v4M3 10h18" />
-            </svg>
-            Maj 2026
-          </button>
-          <a
-            href="/campaigns"
-            className="flex items-center gap-1.5 px-4 py-[9px] rounded-lg text-[13px] font-medium transition-all"
-            style={{
-              background: "#1A1614",
-              color: "#FAF7F2",
-              textDecoration: "none",
-              fontFamily: "inherit",
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            Ny kampanj
-          </a>
-        </div>
-      </div>
+      <Greeting brandName={brand?.name} />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-4 gap-4 mb-9">
-        <KpiCard
-          label="Intäkt 30d"
-          value={customerCount && customerCount > 0 ? "—" : "2,84M"}
-          delta="↑ 12,4%"
-          deltaUp
-          meta="vs förra månaden"
-        />
-        <KpiCard
-          label="Aktiva kunder"
-          value={customerCount?.toLocaleString("sv") ?? "0"}
-          delta={customerCount ? `${customerCount} totalt` : "Importera data"}
-          deltaUp={!!customerCount}
-          meta="i databasen"
-        />
-        <KpiCard
-          label="Predikterad intäkt 30d"
-          value="3,21M"
-          delta=""
-          deltaUp
-          meta={<>Konfidens <strong style={{ color: "#1A1614" }}>87%</strong></>}
-        />
-        <KpiCard
-          label="Churn-risk"
-          value="412"
-          delta="↑ 28"
-          deltaUp={false}
-          meta="behöver win-back nu"
-        />
-      </div>
+      {/* Hero — denna vecka */}
+      <div className="grid gap-4 mb-5" style={{ gridTemplateColumns: "1fr 1fr 1fr 1fr" }}>
 
-      {/* AI Insights */}
-      <div
-        className="rounded-2xl p-7 mb-10"
-        style={{ background: "#FFFFFF", border: "1px solid #E8E0D5" }}
-      >
-        <div className="flex items-center gap-2.5 mb-5">
-          <div
-            className="w-9 h-9 rounded-full flex items-center justify-center"
-            style={{ background: "#1A1614" }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-              <path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" />
-            </svg>
+        {/* Omsättning denna vecka — stor */}
+        <div className="col-span-2 rounded-2xl p-6" style={{ background: ink }}>
+          <div className="text-[10.5px] uppercase tracking-[0.1em] font-semibold mb-3" style={{ color: "rgba(255,255,255,0.45)" }}>
+            Omsättning · Senaste 7 dagarna
           </div>
-          <h3
-            style={{ fontFamily: "var(--font-fraunces), serif", fontWeight: 500, fontSize: 19, color: "#1A1614" }}
-          >
-            MUSE upptäckte i morse
-          </h3>
-          <span className="ml-auto text-xs" style={{ color: "#8F857E" }}>
-            Uppdaterades 06:42
-          </span>
+          <div style={{ fontFamily: "var(--font-fraunces), serif", fontSize: 42, color: "white", lineHeight: 1, letterSpacing: "-0.02em" }}>
+            {thisWeekRevenue > 0 ? thisWeekRevenue.toLocaleString("sv") + " kr" : "–"}
+          </div>
+          <div className="flex items-center gap-2 mt-3">
+            {weekChange !== null ? (
+              <span className="flex items-center gap-1 text-[12px] font-semibold px-2 py-1 rounded-lg"
+                style={{ background: weekChange >= 0 ? "rgba(107,122,99,0.3)" : "rgba(196,82,36,0.3)", color: weekChange >= 0 ? "#A8C9A0" : "#E8937A" }}>
+                {weekChange >= 0 ? "↑" : "↓"} {Math.abs(weekChange)}% vs förra veckan
+              </span>
+            ) : (
+              <span className="text-[12px]" style={{ color: "rgba(255,255,255,0.35)" }}>Ingen data föregående vecka</span>
+            )}
+            <span className="text-[12px]" style={{ color: "rgba(255,255,255,0.35)" }}>
+              {thisWeekOrderCount} order{thisWeekOrderCount !== 1 ? "s" : ""}
+            </span>
+          </div>
         </div>
 
-        <div className="flex flex-col gap-3.5">
-          {MOCK_INSIGHTS.map((insight) => (
-            <div
-              key={insight.id}
-              className="flex gap-3.5 py-3"
-              style={{ borderBottom: "1px solid #E8E0D5" }}
-            >
-              <div
-                className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0"
-                style={{ background: insight.dot }}
-              />
-              <div className="flex-1">
-                <div className="font-semibold text-[13.5px] mb-1" style={{ color: "#1A1614" }}>
-                  {insight.title}
-                </div>
-                <div className="text-[13px] leading-relaxed" style={{ color: "#5C544F" }}>
-                  {insight.body}
-                </div>
-                <div className="flex gap-2 mt-2">
-                  {insight.actions.map((action) => (
-                    <a
-                      key={action.label}
-                      href={action.href}
-                      className="text-[11.5px] px-2.5 py-1 rounded-xl font-medium transition-all"
-                      style={{
-                        background: action.primary ? "#1A1614" : "#F2EDE5",
-                        color: action.primary ? "#FAF7F2" : "#1A1614",
-                        textDecoration: "none",
-                        fontFamily: "inherit",
-                        display: "inline-block",
-                      }}
-                    >
-                      {action.label}
-                    </a>
-                  ))}
-                </div>
-              </div>
+        {/* Total omsättning */}
+        <div className="rounded-2xl p-5" style={{ background: card, border: `1px solid ${border}` }}>
+          <div className="text-[10.5px] uppercase tracking-[0.08em] font-medium mb-2" style={{ color: inkMuted }}>Total omsättning</div>
+          <div style={{ fontFamily: "var(--font-fraunces), serif", fontSize: 26, color: ink, lineHeight: 1 }}>
+            {totalRevenue > 0 ? totalRevenue.toLocaleString("sv") + " kr" : "–"}
+          </div>
+          <div className="mt-2 text-[11.5px]" style={{ color: inkMuted }}>{totalOrders} ordrar totalt</div>
+        </div>
+
+        {/* Snitt ordervärde */}
+        <div className="rounded-2xl p-5" style={{ background: card, border: `1px solid ${border}` }}>
+          <div className="text-[10.5px] uppercase tracking-[0.08em] font-medium mb-2" style={{ color: inkMuted }}>Snitt ordervärde</div>
+          <div style={{ fontFamily: "var(--font-fraunces), serif", fontSize: 26, color: ink, lineHeight: 1 }}>
+            {avgOrderValue > 0 ? avgOrderValue.toLocaleString("sv") + " kr" : "–"}
+          </div>
+          <div className="mt-2 text-[11.5px]" style={{ color: inkMuted }}>Per transaktion</div>
+        </div>
+      </div>
+
+      {/* Kund-rad */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="rounded-2xl p-5" style={{ background: card, border: `1px solid ${border}` }}>
+          <div className="text-[10.5px] uppercase tracking-[0.08em] font-medium mb-2" style={{ color: inkMuted }}>Kunder totalt</div>
+          <div style={{ fontFamily: "var(--font-fraunces), serif", fontSize: 26, color: ink, lineHeight: 1 }}>{totalCustomers.toLocaleString("sv")}</div>
+          <div className="mt-2 text-[11.5px]" style={{ color: newThisMonth > 0 ? "#6B7A63" : inkMuted }}>
+            {newThisMonth > 0 ? `+${newThisMonth} senaste 30 dagarna` : "Inga nya senaste månaden"}
+          </div>
+        </div>
+        <div className="rounded-2xl p-5" style={{ background: card, border: `1px solid ${border}` }}>
+          <div className="text-[10.5px] uppercase tracking-[0.08em] font-medium mb-2" style={{ color: inkMuted }}>Aktiva kunder</div>
+          <div style={{ fontFamily: "var(--font-fraunces), serif", fontSize: 26, color: ink, lineHeight: 1 }}>
+            {customers.filter((c) => c.last_order_at && c.last_order_at >= ninetyDaysAgo).length.toLocaleString("sv")}
+          </div>
+          <div className="mt-2 text-[11.5px]" style={{ color: inkMuted }}>Köpt senaste 90 dagarna</div>
+        </div>
+        <div className="rounded-2xl p-5" style={{ background: churnRisk > 0 ? "#FDF0EC" : card, border: `1px solid ${churnRisk > 0 ? "#E8B4A4" : border}` }}>
+          <div className="text-[10.5px] uppercase tracking-[0.08em] font-medium mb-2" style={{ color: churnRisk > 0 ? "#C45224" : inkMuted }}>Churn-risk</div>
+          <div style={{ fontFamily: "var(--font-fraunces), serif", fontSize: 26, color: churnRisk > 0 ? "#C45224" : ink, lineHeight: 1 }}>{churnRisk}</div>
+          <div className="mt-2 text-[11.5px]" style={{ color: churnRisk > 0 ? "#C45224" : inkMuted }}>
+            {churnRisk > 0
+              ? <a href="/customers" style={{ color: "inherit" }}>Se kunder i riskzon →</a>
+              : "Inga kunder i riskzon"}
+          </div>
+        </div>
+      </div>
+
+      {/* Senaste ordrar */}
+      {recentOrders.length > 0 && (
+        <div className="rounded-2xl mb-5" style={{ background: card, border: `1px solid ${border}` }}>
+          <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: `1px solid ${border}` }}>
+            <h2 style={{ fontFamily: "var(--font-fraunces), serif", fontWeight: 400, fontSize: 18, color: ink }}>
+              Senaste ordrar
+            </h2>
+            <a href="/customers" className="text-[12px] font-medium" style={{ color: inkMuted, textDecoration: "none" }}>
+              Visa alla kunder →
+            </a>
+          </div>
+          <div>
+            {recentOrders.map((order, i) => {
+              const c = order.customers;
+              const name = [c.first_name, c.last_name].filter(Boolean).join(" ") || c.email;
+              const initials = [c.first_name, c.last_name].filter(Boolean).map((n) => n![0]).join("").toUpperCase() || c.email.slice(0, 2).toUpperCase();
+              const items = Array.isArray(order.items) ? order.items : [];
+              const firstItem = items[0] as Record<string, unknown> | undefined;
+              const itemName = firstItem ? String(firstItem.name ?? firstItem.title ?? "") : "";
+              const extraCount = items.length > 1 ? items.length - 1 : 0;
+              const date = new Date(order.created_at).toLocaleDateString("sv-SE", { day: "numeric", month: "short" });
+              const isThisWeek = order.created_at >= sevenDaysAgo;
+
+              return (
+                <a key={order.id} href={`/customers/${order.customer_id}`}
+                  className="flex items-center gap-4 px-6 py-4"
+                  style={{ borderBottom: i < recentOrders.length - 1 ? `1px solid ${border}` : "none", textDecoration: "none", display: "flex" }}>
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
+                    style={{ background: "linear-gradient(135deg, #D9896A, #C07858)" }}>
+                    {initials}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13.5px] font-semibold" style={{ color: ink }}>{name}</div>
+                    <div className="text-[12px] mt-0.5 truncate" style={{ color: inkMuted }}>
+                      {itemName}{extraCount > 0 ? ` +${extraCount} till` : ""}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    {isThisWeek && (
+                      <span className="text-[10px] uppercase tracking-[0.08em] font-semibold px-2 py-0.5 rounded-full" style={{ background: warm, color: inkSoft }}>
+                        Denna vecka
+                      </span>
+                    )}
+                    <div className="text-right">
+                      <div style={{ fontFamily: "var(--font-fraunces), serif", fontSize: 15, color: ink }}>
+                        {order.total.toLocaleString("sv")} kr
+                      </div>
+                      <div className="text-[11.5px] mt-0.5" style={{ color: inkMuted }}>{date}</div>
+                    </div>
+                  </div>
+                </a>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* AI-insikt */}
+      {churnRisk > 0 && (
+        <div className="rounded-2xl overflow-hidden mb-5" style={{ background: card, border: `1px solid ${border}` }}>
+          <div className="px-6 py-4 flex items-center gap-2.5" style={{ background: "linear-gradient(135deg, #1A1614 0%, #3D2B22 100%)" }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" style={{ opacity: 0.7 }}>
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            </svg>
+            <span className="text-[10.5px] uppercase tracking-[0.12em] font-semibold" style={{ color: "rgba(255,255,255,0.6)" }}>
+              LUMA · Insikt
+            </span>
+          </div>
+          <div className="px-6 py-5 flex items-center justify-between gap-6">
+            <p className="text-[14px] leading-relaxed" style={{ color: inkSoft }}>
+              <strong style={{ color: ink }}>{churnRisk} kunder</strong> har inte handlat på över 90 dagar. Med ett snitt ordervärde på {avgOrderValue.toLocaleString("sv")} kr kan en riktad win-back-kampanj ge upp till <strong style={{ color: ink }}>{(churnRisk * avgOrderValue).toLocaleString("sv")} kr</strong> i återvunnen omsättning.
+            </p>
+            <a href="/campaigns"
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[13px] font-medium flex-shrink-0"
+              style={{ background: ink, color: bg, textDecoration: "none", fontFamily: "inherit" }}>
+              Skapa win-back →
+            </a>
+          </div>
+        </div>
+      )}
+
+      {/* AI-signaler */}
+      {aiSignals.length > 0 && (
+        <div className="rounded-2xl overflow-hidden mb-5" style={{ border: `1px solid ${border}` }}>
+          <div className="flex items-center justify-between px-6 py-4" style={{ background: ink }}>
+            <div className="flex items-center gap-2.5">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" style={{ opacity: 0.65 }}>
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              </svg>
+              <span className="text-[10.5px] uppercase tracking-[0.12em] font-semibold" style={{ color: "rgba(255,255,255,0.55)" }}>
+                AI-signaler · Förutsagda köp
+              </span>
             </div>
+            <a href="/ai-recommendations" className="text-[11.5px] font-medium" style={{ color: "rgba(255,255,255,0.4)", textDecoration: "none" }}>
+              Visa alla →
+            </a>
+          </div>
+          {aiSignals.map((c, i) => {
+            const color = AVATAR_COLORS[i % AVATAR_COLORS.length];
+            const displayName = [c.first_name, c.last_name].filter(Boolean).join(" ") || c.email;
+            const initials = c.first_name && c.last_name
+              ? (c.first_name[0] + c.last_name[0]).toUpperCase()
+              : (c.first_name?.[0] ?? c.email[0]).toUpperCase();
+            const urgent = c.actualDaysUntil <= 7;
+            const urgentColor = urgent ? "#3E6B2F" : inkMuted;
+            return (
+              <a key={c.id} href={`/customers/${c.id}`}
+                className="flex items-center gap-4 px-6 py-4"
+                style={{ borderBottom: i < aiSignals.length - 1 ? `1px solid ${border}` : "none", background: card, textDecoration: "none", display: "flex" }}>
+                <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0"
+                  style={{ background: `linear-gradient(135deg, ${color}, ${color}99)`, fontSize: 13 }}>
+                  {initials}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-semibold" style={{ color: ink }}>{displayName}</div>
+                  {c.prediction.reason && (
+                    <div className="text-[11.5px] mt-0.5 truncate" style={{ color: inkMuted, fontStyle: "italic" }}>
+                      {c.prediction.reason}
+                    </div>
+                  )}
+                </div>
+                <div className="text-right flex-shrink-0 ml-4">
+                  <div style={{ fontFamily: "var(--font-fraunces), serif", fontSize: 14, color: ink }}>{c.prediction.product}</div>
+                  <div className="text-[11px] mt-0.5 font-medium" style={{ color: urgentColor }}>
+                    {c.actualDaysUntil === 0 ? "Idag" : `om ${c.actualDaysUntil} dag${c.actualDaysUntil === 1 ? "" : "ar"}`}
+                    {urgent && (
+                      <span className="ml-1.5 inline-flex w-1.5 h-1.5 rounded-full bg-green-600" style={{ verticalAlign: "middle" }} />
+                    )}
+                  </div>
+                </div>
+                <div className="flex-shrink-0 ml-4" style={{ width: 52 }}>
+                  <div className="w-full rounded-full overflow-hidden" style={{ height: 3, background: warm }}>
+                    <div style={{ height: "100%", width: `${c.prediction.confidence}%`, background: "#6B4F5B", borderRadius: 2 }} />
+                  </div>
+                  <div className="text-right mt-1 text-[10.5px] font-semibold" style={{ color: "#6B4F5B" }}>{c.prediction.confidence}%</div>
+                </div>
+              </a>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Snabba vägar */}
+      <div>
+        <h2 className="mb-4" style={{ fontFamily: "var(--font-fraunces), serif", fontWeight: 400, fontSize: 20, color: ink, letterSpacing: "-0.01em" }}>
+          Snabba vägar
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { href: "/customers", label: "Kunder", sub: `${totalCustomers} kunder`, icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v2"/></svg> },
+            { href: "/trends", label: "Försäljning", sub: "Omsättning & beteende", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg> },
+            { href: "/campaigns", label: "Kampanjer", sub: "Skapa kampanj", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg> },
+            { href: "/ai-recommendations", label: "AI-prediktioner", sub: "Nästa köp per kund", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg> },
+          ].map((link) => (
+            <a key={link.href} href={link.href} className="flex flex-col gap-3 rounded-2xl p-5 transition-all"
+              style={{ background: card, border: `1px solid ${border}`, textDecoration: "none" }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: warm, color: ink }}>
+                {link.icon}
+              </div>
+              <div>
+                <div className="font-semibold text-[13.5px]" style={{ color: ink }}>{link.label}</div>
+                <div className="text-[12px] mt-0.5" style={{ color: inkMuted }}>{link.sub}</div>
+              </div>
+            </a>
           ))}
         </div>
       </div>
-
-      {/* Segments preview */}
-      <div className="flex justify-between items-baseline mb-4">
-        <h2
-          style={{ fontFamily: "var(--font-fraunces), serif", fontWeight: 400, fontSize: 22, color: "#1A1614", letterSpacing: "-0.01em" }}
-        >
-          Dina segment
-        </h2>
-        <a
-          href="/segments"
-          className="text-[13px] font-medium"
-          style={{
-            color: "#1A1614",
-            textDecoration: "none",
-            borderBottom: "1px solid #1A1614",
-            paddingBottom: 1,
-          }}
-        >
-          Se alla 12 →
-        </a>
-      </div>
-
-      <div className="grid grid-cols-3 gap-4">
-        {MOCK_SEGMENTS.map((seg) => (
-          <SegmentCard key={seg.id} seg={seg} />
-        ))}
-      </div>
     </div>
-  );
-}
-
-function KpiCard({
-  label,
-  value,
-  delta,
-  deltaUp,
-  meta,
-}: {
-  label: string;
-  value: string;
-  delta: string;
-  deltaUp: boolean;
-  meta: React.ReactNode;
-}) {
-  return (
-    <div
-      className="rounded-2xl transition-all"
-      style={{
-        background: "#FFFFFF",
-        border: "1px solid #E8E0D5",
-        padding: "20px 22px",
-      }}
-    >
-      <div
-        className="text-[11.5px] uppercase tracking-[0.1em] font-medium"
-        style={{ color: "#8F857E" }}
-      >
-        {label}
-      </div>
-      <div
-        className="mt-2.5"
-        style={{
-          fontFamily: "var(--font-fraunces), serif",
-          fontSize: 32,
-          fontWeight: 400,
-          color: "#1A1614",
-          letterSpacing: "-0.02em",
-        }}
-      >
-        {value}
-      </div>
-      <div className="flex items-center gap-1.5 mt-2 text-xs" style={{ color: "#5C544F" }}>
-        {delta && (
-          <span style={{ color: deltaUp ? "#6B7A63" : "#B47A75", fontWeight: 600 }}>
-            {delta}
-          </span>
-        )}
-        <span>{meta}</span>
-      </div>
-    </div>
-  );
-}
-
-function SegmentCard({ seg }: {
-  seg: {
-    id: string;
-    name: string;
-    desc: string;
-    tag: string;
-    gradient: string;
-    customers: string;
-    ltv: string;
-    active: string;
-    suggestion: string;
-  };
-}) {
-  return (
-    <a
-      href={`/segments/${seg.id}`}
-      className="flex flex-col rounded-2xl overflow-hidden transition-all group"
-      style={{
-        background: "#FFFFFF",
-        border: "1px solid #E8E0D5",
-        textDecoration: "none",
-      }}
-    >
-      {/* Mood header */}
-      <div
-        className="relative overflow-hidden"
-        style={{ height: 110, background: seg.gradient }}
-      >
-        {/* Dot pattern */}
-        <div
-          className="absolute inset-0"
-          style={{
-            opacity: 0.15,
-            backgroundImage: "radial-gradient(circle at 30% 30%, white 0.5px, transparent 1px)",
-            backgroundSize: "22px 22px",
-          }}
-        />
-        <span
-          className="absolute text-[10.5px] uppercase tracking-[0.08em] font-semibold px-[9px] py-[4px] rounded-xl"
-          style={{
-            top: 14,
-            left: 16,
-            background: "rgba(255,255,255,0.92)",
-            color: "#1A1614",
-            backdropFilter: "blur(8px)",
-          }}
-        >
-          {seg.tag}
-        </span>
-      </div>
-
-      {/* Body */}
-      <div className="p-5 flex flex-col flex-1">
-        <div
-          style={{ fontFamily: "var(--font-fraunces), serif", fontSize: 19, fontWeight: 500, color: "#1A1614", letterSpacing: "-0.01em" }}
-        >
-          {seg.name}
-        </div>
-        <div className="mt-1 text-[13px] leading-snug" style={{ color: "#5C544F" }}>
-          {seg.desc}
-        </div>
-
-        {/* Stats */}
-        <div
-          className="flex justify-between mt-4 pt-3.5"
-          style={{ borderTop: "1px solid #E8E0D5" }}
-        >
-          <div>
-            <div className="text-[10.5px] uppercase tracking-[0.08em] font-medium" style={{ color: "#8F857E" }}>Kunder</div>
-            <div style={{ fontFamily: "var(--font-fraunces), serif", fontSize: 17, color: "#1A1614", marginTop: 2 }}>{seg.customers}</div>
-          </div>
-          <div>
-            <div className="text-[10.5px] uppercase tracking-[0.08em] font-medium" style={{ color: "#8F857E" }}>Snitt LTV</div>
-            <div style={{ fontFamily: "var(--font-fraunces), serif", fontSize: 17, color: "#1A1614", marginTop: 2 }}>{seg.ltv}</div>
-          </div>
-          <div>
-            <div className="text-[10.5px] uppercase tracking-[0.08em] font-medium" style={{ color: "#8F857E" }}>Aktiv</div>
-            <div style={{ fontFamily: "var(--font-fraunces), serif", fontSize: 17, color: "#1A1614", marginTop: 2 }}>{seg.active}</div>
-          </div>
-        </div>
-
-        {/* AI suggestion */}
-        <div
-          className="flex gap-2.5 items-start rounded-xl mt-4"
-          style={{ background: "#F2EDE5", padding: "11px 13px" }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="#B47A75" className="flex-shrink-0 mt-0.5">
-            <path d="M12 2l2 6h6l-5 4 2 7-5-4-5 4 2-7-5-4h6z" />
-          </svg>
-          <div className="text-[12.5px] leading-snug" style={{ color: "#5C544F" }}>
-            <strong style={{ color: "#1A1614" }}>{seg.suggestion.split(" — ")[0]}</strong>
-            {seg.suggestion.includes(" — ") ? ` — ${seg.suggestion.split(" — ")[1]}` : ""}
-          </div>
-        </div>
-      </div>
-    </a>
   );
 }

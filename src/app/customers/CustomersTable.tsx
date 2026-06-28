@@ -1,0 +1,474 @@
+"use client";
+
+import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { createClient } from "@/lib/supabase/client";
+import { generateTablePrediction } from "@/lib/predictions";
+
+interface SalesRep {
+  id: string;
+  name: string;
+  color: string;
+}
+
+interface Segment {
+  id: string;
+  name: string;
+}
+
+interface Customer {
+  id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  total_spent: number | null;
+  order_count: number | null;
+  sales_rep_id: string | null;
+  phone?: string | null;
+  last_order_at?: string | null;
+  created_at?: string | null;
+}
+
+interface MockCustomer {
+  initials: string;
+  gradient: string;
+  name: string;
+  email: string;
+  segment: string;
+  segColor: string;
+  segText: string;
+  ltv: string;
+  next: string;
+}
+
+const MOCK_CUSTOMERS: MockCustomer[] = [
+  { initials: "EW", gradient: "linear-gradient(135deg,#D9896A,#C45224)", name: "Elsa Wikström", email: "elsa.w@gmail.com", segment: "Stammisar", segColor: "#F4DDD9", segText: "#6F3F3A", ltv: "32 400 kr", next: "22 maj · Linen Mini Dress" },
+  { initials: "AL", gradient: "linear-gradient(135deg,#C9A961,#8A7038)", name: "Amanda Lundqvist", email: "amanda@studio.se", segment: "VIP-kunder", segColor: "#F2E5C5", segText: "#6A4E1B", ltv: "41 800 kr", next: "24 maj · Cashmere Cardigan" },
+  { initials: "FM", gradient: "linear-gradient(135deg,#1A1614,#4D3A35)", name: "Felicia Magnusson", email: "felicia.m@me.com", segment: "Nya kunder", segColor: "#1A1614", segText: "#FAF5EB", ltv: "11 200 kr", next: "20 maj · Oversized Blazer" },
+  { initials: "VK", gradient: "linear-gradient(135deg,#A8B5A0,#6B7A63)", name: "Vera Karlsson", email: "vera.k@gmail.com", segment: "Vänner & familj", segColor: "#DDE7D7", segText: "#3E4F36", ltv: "980 kr", next: "28 maj · Cotton T-shirt" },
+  { initials: "JE", gradient: "linear-gradient(135deg,#6B4F5B,#3D2C35)", name: "Johanna Ekberg", email: "johanna.e@hotmail.com", segment: "På väg bort", segColor: "#E3D5DC", segText: "#4D3540", ltv: "14 600 kr", next: "Osäker" },
+  { initials: "CN", gradient: "linear-gradient(135deg,#D9896A,#C07858)", name: "Carolina Nilsson", email: "carolina.n@me.com", segment: "Inaktiva kunder", segColor: "#F2E8D0", segText: "#5A4232", ltv: "6 200 kr", next: "Behöver aktivering" },
+];
+
+const ink = "#1A1614";
+const inkMuted = "#8A6E55";
+const border = "#DDD0B5";
+const warm = "#F2E8D0";
+
+const SEGMENT_DISPLAY: Record<string, string> = {
+  "Stammisar": "Stammis",
+};
+
+function segDisplayName(name: string) {
+  return SEGMENT_DISPLAY[name] ?? name;
+}
+
+// Palette for manual segment badges, cycles by index
+const SEG_PALETTE = [
+  { bg: "#F4DDD9", text: "#6F3F3A" },
+  { bg: "#F2E5C5", text: "#6A4E1B" },
+  { bg: "#DDE7D7", text: "#3E4F36" },
+  { bg: "#E3D5DC", text: "#4D3540" },
+  { bg: "#E8E4DC", text: "#4A3F35" },
+];
+
+function segmentColor(index: number) {
+  return SEG_PALETTE[index % SEG_PALETTE.length];
+}
+
+// Computes the auto-segment label based on purchase history
+function getAutoSegment(c: Customer): { label: string; bg: string; text: string } | null {
+  const now = Date.now();
+  const lastOrderMs = c.last_order_at ? new Date(c.last_order_at).getTime() : null;
+  const createdMs = c.created_at ? new Date(c.created_at).getTime() : null;
+  const daysSinceLast = lastOrderMs ? Math.floor((now - lastOrderMs) / 86_400_000) : null;
+  const daysSinceCreated = createdMs ? Math.floor((now - createdMs) / 86_400_000) : null;
+
+  if (daysSinceLast !== null && daysSinceLast > 180) {
+    return { label: "Inaktiv", bg: "#F2E8D0", text: "#5A4232" };
+  }
+  if (daysSinceLast !== null && daysSinceLast > 90) {
+    return { label: "På väg bort", bg: "#E3D5DC", text: "#4D3540" };
+  }
+  if ((c.order_count ?? 0) <= 1 && (daysSinceCreated === null || daysSinceCreated <= 60)) {
+    return { label: "Ny", bg: "#DDE7D7", text: "#3E4F36" };
+  }
+  return null;
+}
+
+function RepPicker({ customerId, currentRepId, salesReps, onAssign }: {
+  customerId: string;
+  currentRepId: string | null;
+  salesReps: SalesRep[];
+  onAssign: (customerId: string, repId: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const currentRep = salesReps.find((r) => r.id === currentRepId);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (
+        dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
+        buttonRef.current && !buttonRef.current.contains(e.target as Node)
+      ) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  function handleOpen() {
+    if (buttonRef.current) {
+      const r = buttonRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 4, left: r.left });
+    }
+    setOpen((v) => !v);
+  }
+
+  async function assign(repId: string | null) {
+    setSaving(true);
+    setOpen(false);
+    const supabase = createClient();
+    await supabase.from("customers").update({ sales_rep_id: repId }).eq("id", customerId);
+    onAssign(customerId, repId);
+    setSaving(false);
+  }
+
+  const dropdown = open ? (
+    <div ref={dropdownRef} style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 9999, background: "#FFFFFF", border: `1px solid ${border}`, borderRadius: 12, minWidth: 170, padding: "4px 0", boxShadow: "0 4px 16px rgba(26,22,20,0.12)" }}>
+      {salesReps.map((rep) => {
+        const initials = rep.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+        const isSelected = rep.id === currentRepId;
+        return (
+          <button key={rep.id} onClick={() => assign(rep.id)} className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-left" style={{ background: isSelected ? warm : "transparent", color: ink, cursor: "pointer", fontFamily: "inherit", border: "none" }}
+            onMouseEnter={(e) => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = warm; }}
+            onMouseLeave={(e) => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
+            <div className="w-5 h-5 rounded-full flex items-center justify-center text-white flex-shrink-0" style={{ background: rep.color, fontSize: 8, fontWeight: 700 }}>{initials}</div>
+            <span className="flex-1">{rep.name}</span>
+            {isSelected && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={ink} strokeWidth="2.5"><path d="M20 6L9 17l-5-5" /></svg>}
+          </button>
+        );
+      })}
+      {currentRepId && (
+        <>
+          <div style={{ height: 1, background: border, margin: "4px 0" }} />
+          <button onClick={() => assign(null)} className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-left" style={{ background: "transparent", color: inkMuted, cursor: "pointer", fontFamily: "inherit", border: "none" }}
+            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = warm)}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "transparent")}>
+            Ta bort tilldelning
+          </button>
+        </>
+      )}
+    </div>
+  ) : null;
+
+  return (
+    <div>
+      <button ref={buttonRef} onClick={handleOpen} disabled={saving}
+        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-all"
+        style={{ background: currentRep ? currentRep.color + "22" : warm, color: currentRep ? currentRep.color : inkMuted, border: `1px solid ${currentRep ? currentRep.color + "44" : border}`, cursor: saving ? "wait" : "pointer", fontFamily: "inherit" }}>
+        {currentRep ? (
+          <><div className="w-3.5 h-3.5 rounded-full flex-shrink-0" style={{ background: currentRep.color }} />{currentRep.name.split(" ")[0]}</>
+        ) : (
+          <><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14" /></svg>Tilldela</>
+        )}
+      </button>
+      {typeof window !== "undefined" && createPortal(dropdown, document.body)}
+    </div>
+  );
+}
+
+function SegmentPicker({ customerId, assignedIds, segments, onToggle }: {
+  customerId: string;
+  assignedIds: string[];
+  segments: Segment[];
+  onToggle: (customerId: string, segmentId: string, add: boolean) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (
+        dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
+        buttonRef.current && !buttonRef.current.contains(e.target as Node)
+      ) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  function handleOpen() {
+    if (buttonRef.current) {
+      const r = buttonRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 4, left: r.left });
+    }
+    setOpen((v) => !v);
+  }
+
+  async function toggle(segmentId: string) {
+    const adding = !assignedIds.includes(segmentId);
+    setSaving(segmentId);
+    const supabase = createClient();
+    if (adding) {
+      await supabase.from("segment_memberships").insert({ customer_id: customerId, segment_id: segmentId });
+    } else {
+      await supabase.from("segment_memberships").delete().eq("customer_id", customerId).eq("segment_id", segmentId);
+    }
+    onToggle(customerId, segmentId, adding);
+    setSaving(null);
+  }
+
+  const assignedSegments = segments.filter((s) => assignedIds.includes(s.id));
+
+  const dropdown = open ? (
+    <div ref={dropdownRef} style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 9999, background: "#FFFFFF", border: `1px solid ${border}`, borderRadius: 12, minWidth: 180, padding: "4px 0", boxShadow: "0 4px 16px rgba(26,22,20,0.12)" }}>
+      {segments.length === 0 ? (
+        <p className="px-4 py-3 text-[12px]" style={{ color: inkMuted }}>Inga segment skapade ännu.</p>
+      ) : (
+        segments.map((seg, i) => {
+          const isSelected = assignedIds.includes(seg.id);
+          const isSaving = saving === seg.id;
+          const col = segmentColor(i);
+          return (
+            <button key={seg.id} onClick={() => toggle(seg.id)} disabled={!!saving}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-left"
+              style={{ background: isSelected ? warm : "transparent", color: ink, cursor: isSaving ? "wait" : "pointer", fontFamily: "inherit", border: "none" }}
+              onMouseEnter={(e) => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = warm; }}
+              onMouseLeave={(e) => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
+              <span className="text-[11px] font-medium px-[7px] py-[2px] rounded-lg flex-shrink-0" style={{ background: col.bg, color: col.text }}>{segDisplayName(seg.name)}</span>
+              <span className="flex-1" />
+              {isSelected && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={ink} strokeWidth="2.5"><path d="M20 6L9 17l-5-5" /></svg>}
+            </button>
+          );
+        })
+      )}
+    </div>
+  ) : null;
+
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {assignedSegments.map((seg, i) => {
+        const col = segmentColor(segments.findIndex((s) => s.id === seg.id));
+        return (
+          <span key={seg.id} className="text-[11px] font-medium px-[9px] py-[3px] rounded-xl" style={{ background: col.bg, color: col.text }}>
+            {segDisplayName(seg.name)}
+          </span>
+        );
+      })}
+      {segments.length > 0 && (
+        <button ref={buttonRef} onClick={handleOpen}
+          className="flex items-center gap-1 px-2 py-[3px] rounded-lg text-[11px] font-medium"
+          style={{ background: "transparent", color: inkMuted, border: `1px dashed ${border}`, cursor: "pointer", fontFamily: "inherit" }}>
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14" /></svg>
+          {assignedSegments.length === 0 ? "Lägg till" : ""}
+        </button>
+      )}
+      {typeof window !== "undefined" && createPortal(dropdown, document.body)}
+    </div>
+  );
+}
+
+export function CustomersTable({ realCustomers, salesReps, segments, initialMemberships, totalCount }: {
+  realCustomers: Customer[];
+  salesReps: SalesRep[];
+  segments: Segment[];
+  initialMemberships: Record<string, string[]>;
+  totalCount: number;
+}) {
+  const [repAssignments, setRepAssignments] = useState<Record<string, string | null>>(
+    () => Object.fromEntries(realCustomers.map((c) => [c.id, c.sales_rep_id]))
+  );
+  const [memberships, setMemberships] = useState<Record<string, string[]>>(initialMemberships);
+  const [search, setSearch] = useState("");
+
+  function handleAssign(customerId: string, repId: string | null) {
+    setRepAssignments((prev) => ({ ...prev, [customerId]: repId }));
+  }
+
+  function handleSegmentToggle(customerId: string, segmentId: string, add: boolean) {
+    setMemberships((prev) => {
+      const current = prev[customerId] ?? [];
+      return {
+        ...prev,
+        [customerId]: add ? [...current, segmentId] : current.filter((id) => id !== segmentId),
+      };
+    });
+  }
+
+  const hasRealData = realCustomers.length > 0;
+  const q = search.toLowerCase().trim();
+
+  const filteredReal = q
+    ? realCustomers.filter((c) =>
+        [c.first_name, c.last_name, c.email, c.phone]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(q)
+      )
+    : realCustomers;
+
+  const filteredMock = q
+    ? MOCK_CUSTOMERS.filter((c) => (c.name + " " + c.email).toLowerCase().includes(q))
+    : MOCK_CUSTOMERS;
+
+  const headers = ["Kund", "Segment", "Totalt köpvärde", "Predikterat nästa köp", "Säljare"];
+
+  return (
+    <>
+      {/* Toolbar */}
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-5 -mt-4">
+        <p style={{ color: inkMuted, fontSize: 14 }}>
+          {totalCount > 0 ? `${totalCount.toLocaleString("sv")} totalt` : "18 421 totalt"}
+        </p>
+        <div className="relative w-full md:w-60">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={inkMuted} strokeWidth="2" className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+            <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+          </svg>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Sök namn, e-post, telefon..."
+            className="pl-9 pr-4 py-2 rounded-xl text-[13px] outline-none"
+            style={{ background: "#FFFFFF", border: `1px solid ${border}`, color: ink, fontFamily: "inherit", width: "100%" }}
+            onFocus={(e) => (e.target.style.borderColor = ink)}
+            onBlur={(e) => (e.target.style.borderColor = border)}
+          />
+        </div>
+      </div>
+
+      <div className="rounded-2xl overflow-hidden" style={{ background: "#FFFFFF", border: `1px solid ${border}` }}>
+        <div className="overflow-x-auto">
+          <table style={{ width: "100%", minWidth: 700, borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                {headers.map((h) => (
+                  <th key={h} style={{ textAlign: "left", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: inkMuted, fontWeight: 500, padding: "14px 22px", borderBottom: `1px solid ${border}`, background: warm }}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {hasRealData ? (
+                filteredReal.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{ padding: "40px 22px", textAlign: "center", color: inkMuted, fontSize: 14 }}>
+                      Inga kunder matchar sökningen.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredReal.map((c) => {
+                    const initials = [c.first_name, c.last_name].filter(Boolean).map((n) => n![0]).join("").toUpperCase() || c.email.slice(0, 2).toUpperCase();
+                    const fullName = [c.first_name, c.last_name].filter(Boolean).join(" ") || c.email;
+                    const ltv = c.total_spent ? c.total_spent.toLocaleString("sv") + " kr" : "–";
+                    const rep = salesReps.find((r) => r.id === repAssignments[c.id]);
+                    const gradient = rep ? `linear-gradient(135deg, ${rep.color}, ${rep.color}99)` : "linear-gradient(135deg, #D9896A, #C07858)";
+                    const autoSeg = getAutoSegment(c);
+                    const assignedSegIds = memberships[c.id] ?? [];
+
+                    return (
+                      <tr key={c.id}
+                        style={{ cursor: "pointer" }}
+                        onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "#FDFCFA")}
+                        onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "transparent")}
+                        onClick={(e) => {
+                          if ((e.target as HTMLElement).closest("button")) return;
+                          window.location.href = `/customers/${c.id}`;
+                        }}>
+                        <td style={{ padding: "16px 22px", borderBottom: `1px solid ${border}` }}>
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ background: gradient }}>{initials}</div>
+                            <div>
+                              <div className="font-semibold text-[13.5px]" style={{ color: ink }}>{fullName}</div>
+                              <div className="text-xs mt-0.5" style={{ color: inkMuted }}>{c.email}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ padding: "16px 22px", borderBottom: `1px solid ${border}` }}>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {autoSeg && (
+                              <span className="text-[11px] font-medium px-[9px] py-[3px] rounded-xl" style={{ background: autoSeg.bg, color: autoSeg.text }}>
+                                {autoSeg.label}
+                              </span>
+                            )}
+                            <SegmentPicker
+                              customerId={c.id}
+                              assignedIds={assignedSegIds}
+                              segments={segments}
+                              onToggle={handleSegmentToggle}
+                            />
+                          </div>
+                        </td>
+                        <td style={{ padding: "16px 22px", borderBottom: `1px solid ${border}`, fontSize: 13.5, color: ink }}>{ltv}</td>
+                        {(() => {
+                          const pred = generateTablePrediction(c);
+                          return (
+                            <td style={{ padding: "16px 22px", borderBottom: `1px solid ${border}` }}>
+                              <div className="text-[13px] font-medium" style={{ color: ink }}>{pred.product}</div>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[11.5px]" style={{ color: inkMuted }}>{pred.date}</span>
+                                <span className="text-[11px] px-[7px] py-[2px] rounded-lg font-medium" style={{ background: warm, color: inkMuted }}>{pred.confidence}%</span>
+                              </div>
+                            </td>
+                          );
+                        })()}
+                        <td style={{ padding: "16px 22px", borderBottom: `1px solid ${border}` }}>
+                          {salesReps.length > 0 ? (
+                            <RepPicker customerId={c.id} currentRepId={repAssignments[c.id] ?? null} salesReps={salesReps} onAssign={handleAssign} />
+                          ) : (
+                            <span style={{ color: inkMuted, fontSize: 13 }}>–</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )
+              ) : (
+                filteredMock.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{ padding: "40px 22px", textAlign: "center", color: inkMuted, fontSize: 14 }}>
+                      Inga kunder matchar sökningen.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredMock.map((c) => (
+                    <tr key={c.email} style={{ cursor: "pointer" }}
+                      onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "#FDFCFA")}
+                      onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "transparent")}>
+                      <td style={{ padding: "16px 22px", borderBottom: `1px solid ${border}` }}>
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ background: c.gradient }}>{c.initials}</div>
+                          <div>
+                            <div className="font-semibold text-[13.5px]" style={{ color: ink }}>{c.name}</div>
+                            <div className="text-xs mt-0.5" style={{ color: inkMuted }}>{c.email}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ padding: "16px 22px", borderBottom: `1px solid ${border}` }}>
+                        <span className="text-[11px] font-medium px-[9px] py-[3px] rounded-xl" style={{ background: c.segColor, color: c.segText }}>{c.segment}</span>
+                      </td>
+                      <td style={{ padding: "16px 22px", borderBottom: `1px solid ${border}`, fontSize: 13.5, color: ink }}>{c.ltv}</td>
+                      <td style={{ padding: "16px 22px", borderBottom: `1px solid ${border}`, fontSize: 13.5, color: ink }}>{c.next}</td>
+                      <td style={{ padding: "16px 22px", borderBottom: `1px solid ${border}` }}>
+                        <span style={{ color: inkMuted, fontSize: 13 }}>–</span>
+                      </td>
+                    </tr>
+                  ))
+                )
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}

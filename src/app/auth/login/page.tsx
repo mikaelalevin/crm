@@ -31,13 +31,13 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: "#FAF7F2" }}>
+    <div className="min-h-screen flex items-center justify-center" style={{ background: "#FAF5EB" }}>
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex items-center gap-2 justify-center mb-12">
           <div
             className="w-2 h-2 rounded-full"
-            style={{ background: "#B47A75" }}
+            style={{ background: "#C45224" }}
           />
           <span
             className="text-3xl tracking-widest"
@@ -47,7 +47,7 @@ export default function LoginPage() {
               color: "#1A1614",
             }}
           >
-            MUSE
+            LUMA
           </span>
         </div>
 
@@ -55,7 +55,7 @@ export default function LoginPage() {
           className="rounded-2xl p-8"
           style={{
             background: "#FFFFFF",
-            border: "1px solid #E8E0D5",
+            border: "1px solid #DDD0B5",
             boxShadow: "0 1px 2px rgba(26,22,20,0.04), 0 4px 16px rgba(26,22,20,0.04)",
           }}
         >
@@ -63,9 +63,9 @@ export default function LoginPage() {
             <div className="text-center">
               <div
                 className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-5"
-                style={{ background: "#F2EDE5" }}
+                style={{ background: "#F2E8D0" }}
               >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#B47A75" strokeWidth="2">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#C45224" strokeWidth="2">
                   <path d="M3 8l9-5 9 5-9 5-9-5z" />
                   <path d="M3 14l9 5 9-5" />
                   <path d="M3 11l9 5 9-5" />
@@ -77,7 +77,7 @@ export default function LoginPage() {
               >
                 Kolla din inkorg
               </h2>
-              <p className="text-sm" style={{ color: "#8F857E", lineHeight: 1.6 }}>
+              <p className="text-sm" style={{ color: "#8A6E55", lineHeight: 1.6 }}>
                 Vi har skickat en inloggningslänk till{" "}
                 <strong style={{ color: "#1A1614" }}>{email}</strong>. Klicka på
                 länken för att logga in.
@@ -91,7 +91,7 @@ export default function LoginPage() {
               >
                 Välkommen tillbaka
               </h2>
-              <p className="text-sm mb-8" style={{ color: "#8F857E" }}>
+              <p className="text-sm mb-8" style={{ color: "#8A6E55" }}>
                 Skriv in din e-postadress så skickar vi en länk.
               </p>
 
@@ -100,7 +100,7 @@ export default function LoginPage() {
                   <label
                     htmlFor="email"
                     className="block text-xs mb-2 uppercase tracking-widest"
-                    style={{ color: "#8F857E", fontWeight: 500 }}
+                    style={{ color: "#8A6E55", fontWeight: 500 }}
                   >
                     E-post
                   </label>
@@ -113,18 +113,18 @@ export default function LoginPage() {
                     placeholder="du@dittvarumärke.se"
                     className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-all"
                     style={{
-                      background: "#FAF7F2",
-                      border: "1px solid #E8E0D5",
+                      background: "#FAF5EB",
+                      border: "1px solid #DDD0B5",
                       color: "#1A1614",
                       fontFamily: "inherit",
                     }}
                     onFocus={(e) => (e.target.style.borderColor = "#1A1614")}
-                    onBlur={(e) => (e.target.style.borderColor = "#E8E0D5")}
+                    onBlur={(e) => (e.target.style.borderColor = "#DDD0B5")}
                   />
                 </div>
 
                 {error && (
-                  <p className="text-sm" style={{ color: "#B47A75" }}>
+                  <p className="text-sm" style={{ color: "#C45224" }}>
                     {error}
                   </p>
                 )}
@@ -134,8 +134,8 @@ export default function LoginPage() {
                   disabled={loading}
                   className="w-full py-3 rounded-xl text-sm font-medium transition-all"
                   style={{
-                    background: loading ? "#5C544F" : "#1A1614",
-                    color: "#FAF7F2",
+                    background: loading ? "#5A4232" : "#1A1614",
+                    color: "#FAF5EB",
                     fontFamily: "inherit",
                     cursor: loading ? "not-allowed" : "pointer",
                     border: "none",
@@ -148,7 +148,7 @@ export default function LoginPage() {
           )}
         </div>
 
-        <p className="text-center text-xs mt-8" style={{ color: "#8F857E" }}>
+        <p className="text-center text-xs mt-8" style={{ color: "#8A6E55" }}>
           Inget konto än?{" "}
           <a href="/auth/login" className="underline" style={{ color: "#1A1614" }}>
             Kom igång gratis

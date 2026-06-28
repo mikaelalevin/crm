@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Papa from "papaparse";
 import { createClient } from "@/lib/supabase/client";
@@ -28,6 +28,25 @@ export default function OnboardingPage() {
   // Brand step
   const [brandName, setBrandName] = useState("");
   const [brandId, setBrandId] = useState("");
+
+  // If user already has a brand, jump straight to import step
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return;
+      const { data: brandsData } = await supabase
+        .from("brands")
+        .select("id")
+        .eq("owner_id", user.id)
+        .order("created_at")
+        .limit(1);
+      const existing = (brandsData?.[0] as { id: string } | undefined)?.id;
+      if (existing) {
+        setBrandId(existing);
+        setStep("import");
+      }
+    });
+  }, []);
 
   // Import step
   const [csvFile, setCsvFile] = useState<File | null>(null);
@@ -159,11 +178,11 @@ export default function OnboardingPage() {
   }
 
   const ink = "#1A1614";
-  const inkMuted = "#8F857E";
-  const border = "#E8E0D5";
-  const warm = "#F2EDE5";
+  const inkMuted = "#8A6E55";
+  const border = "#DDD0B5";
+  const warm = "#F2E8D0";
   const card = "#FFFFFF";
-  const bg = "#FAF7F2";
+  const bg = "#FAF5EB";
 
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: bg }}>
@@ -171,12 +190,12 @@ export default function OnboardingPage() {
         {/* Logo + progress */}
         <div className="flex items-center justify-between mb-10">
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full" style={{ background: "#B47A75" }} />
+            <div className="w-2 h-2 rounded-full" style={{ background: "#C45224" }} />
             <span
               className="text-2xl tracking-widest"
               style={{ fontFamily: "var(--font-fraunces), serif", fontWeight: 400, color: ink }}
             >
-              MUSE
+              LUMA
             </span>
           </div>
           <div className="flex gap-2">
@@ -227,14 +246,14 @@ export default function OnboardingPage() {
                   />
                 </div>
 
-                {error && <p className="text-sm" style={{ color: "#B47A75" }}>{error}</p>}
+                {error && <p className="text-sm" style={{ color: "#C45224" }}>{error}</p>}
 
                 <button
                   type="submit"
                   disabled={loading || !brandName.trim()}
                   className="w-full py-3 rounded-xl text-sm font-medium transition-all"
                   style={{
-                    background: loading || !brandName.trim() ? "#8F857E" : ink,
+                    background: loading || !brandName.trim() ? "#8A6E55" : ink,
                     color: bg,
                     fontFamily: "inherit",
                     border: "none",
@@ -351,7 +370,7 @@ export default function OnboardingPage() {
                 </div>
               )}
 
-              {error && <p className="text-sm mb-4" style={{ color: "#B47A75" }}>{error}</p>}
+              {error && <p className="text-sm mb-4" style={{ color: "#C45224" }}>{error}</p>}
 
               <div className="flex gap-3">
                 <button
@@ -366,7 +385,7 @@ export default function OnboardingPage() {
                   disabled={!csvFile || loading}
                   className="flex-1 py-3 rounded-xl text-sm font-medium"
                   style={{
-                    background: !csvFile || loading ? "#8F857E" : ink,
+                    background: !csvFile || loading ? "#8A6E55" : ink,
                     color: bg,
                     border: "none",
                     cursor: !csvFile || loading ? "not-allowed" : "pointer",
@@ -396,7 +415,7 @@ export default function OnboardingPage() {
                 Du är redo!
               </h2>
               <p className="text-sm mb-8" style={{ color: inkMuted, lineHeight: 1.6 }}>
-                Dina kunddata är importerade. MUSE är redo att börja analysera och generera insikter.
+                Dina kunddata är importerade. LUMA är redo att börja analysera och generera insikter.
               </p>
               <button
                 onClick={() => router.push("/dashboard")}
