@@ -663,20 +663,6 @@ export function CustomerDetail({ customer, salesReps, orders, sessions, aiPredic
 
             {error && <p className="text-sm" style={{ color: "#C45224" }}>{error}</p>}
 
-            {editing && (
-              <div className="flex gap-3">
-                <button type="button" onClick={handleCancel}
-                  className="flex-1 py-3 rounded-xl text-sm font-medium"
-                  style={{ background: warm, color: ink, border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-                  Avbryt
-                </button>
-                <button type="submit" disabled={saving || !email.trim()}
-                  className="flex-1 py-3 rounded-xl text-sm font-medium"
-                  style={{ background: saving || !email.trim() ? inkMuted : ink, color: bg, border: "none", cursor: saving || !email.trim() ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
-                  {saving ? "Sparar..." : "Spara ändringar →"}
-                </button>
-              </div>
-            )}
           </form>
           </div>{/* end contact+form wrapper */}
         </div>
